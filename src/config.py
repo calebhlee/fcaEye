@@ -162,9 +162,9 @@ PROJECT_DIR = Path(__file__).resolve().parent.parent
 PATHS = {
     "stimDir": PROJECT_DIR / "stimObj",                 # object images
     "dataDir": PROJECT_DIR / "data",                    # output data files
-    "fontDir": PROJECT_DIR / "demo" / "fonts",          # page fonts
+    "fontDir": PROJECT_DIR / "src" / "fonts",          # page fonts
     "keyFile": PROJECT_DIR.parent / "participant_key" / "participant_key.csv",  # SONA ID -> PID
-    "debriefLetter": PROJECT_DIR / "demo" / "debrief_letter.txt",   # debrief letter txt
+    "debriefLetter": PROJECT_DIR / "src" / "debrief_letter.txt",   # debrief letter txt
 
 }
 
@@ -480,7 +480,7 @@ POSTTASK = {
 
 # Text screens are white with black text; calibration and trials use
 # DISPLAY["bgColour"]. Colours are hex codes. Sizes in px.
-# Font bundled in demo/fonts (Source Sans 3, SIL Open Font Licence).
+# Font bundled in src/fonts (Source Sans 3, SIL Open Font Licence).
 PAGE_STYLE = {
     "titleFont": "Source Sans 3",   # titles in semibold
     "bodyFont": "Source Sans 3",

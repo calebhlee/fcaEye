@@ -14,7 +14,7 @@ import sys
 sys.path.insert(0, r"C:\Users\Public\Documents\CRS LiveTrack Python Bindings")
 import LiveTrack
 
-import eventlog
+from data_record import eventlog
 import geometry
 from config import CENTRAL_FIXATION, DWELL_SELECTION, GAZE_STATE
 from presentation import check_escape

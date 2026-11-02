@@ -18,11 +18,10 @@ from psychopy import core
 
 import calibrate
 import design
-import eventlog
 import geometry
-from pid import assign_pid
 import response
-import trialdata
+from data_record import eventlog, trialdata
+from data_record.pid import assign_pid
 from config import (CENTRAL_FIXATION, COUNTERBALANCE, DEMO_TRIALS,
                     GENDER_OPTIONS,
                     IMAGE_NAME_ORDER, PATHS, PHASES, POSTTASK, SCREEN_TEXT,

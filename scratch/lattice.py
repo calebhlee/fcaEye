@@ -6,10 +6,13 @@
 Run:  python lattice.py   (prints each concept, saves out/lattice.png)
 """
 
+import sys
 from pathlib import Path
 
 from concepts import Context
 
+# config.py is in src/, next to scratch/
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from config import CONTEXT
 
 
@@ -51,7 +54,7 @@ def draw_lattice(lattice):
                          fontname="Helvetica")
     dot.graph_attr.update(nodesep="0.3", splines="line")
 
-    # out/ is at the project root, next to demo/
+    # out/ is at the project root, next to src/
     out_dir = Path(__file__).resolve().parent.parent / "out"
     # cleanup=True deletes graphviz's source file and keeps only the PNG
     path = dot.render(filename="lattice", directory=out_dir,

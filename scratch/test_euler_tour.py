@@ -9,8 +9,12 @@ A failure means a bug, not bad luck: Euler tours balance by construction.
 """
 
 import random
+import sys
 from collections import Counter
+from pathlib import Path
 
+# config.py and design.py are in src/, next to scratch/
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from config import EULER_TOUR
 from config import CONTEXT
 from design import trial_sequence

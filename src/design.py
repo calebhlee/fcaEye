@@ -18,7 +18,7 @@ from config import (ATTRIBUTES, COUNTERBALANCE, DEMO_TRIALS, EULER_TOUR,
                     PROJECT_DIR)
 from config import CONTEXT, CONTEXTS
 
-# eulerTours/ sits at the project root, outside demo/
+# eulerTours/ sits at the project root, outside src/
 sys.path.insert(0, str(PROJECT_DIR))
 from eulerTours import euler
 

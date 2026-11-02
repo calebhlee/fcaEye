@@ -1,17 +1,16 @@
 # AI usage: code co-written with Claude Opus 5.5.
 # Research questions, experimental design and program requirements came from Caleb and Britt.
 
-"""Session and trial data files.
+"""
+This file writes "session" and "trial" data files.
 
-    data/<name>/<name>.csv                tracker samples and markers
-                                          (LiveTrack, eventlog.py)
-    data/<name>/<name>_session.csv        one row of session-wide values
-    data/<name>/<name>_trials.csv         one row per trial
+    data/<PID_date>/<PID_date>.csv                tracker samples and markers (written by LiveTrack)
+    data/<PID_date>/<PID_date>_session.csv        all values held constant per session (participant)
+    data/<PID_date>/<PID_date>_trials.csv         values that change per trial
 name = <id>_<date> (YYYYmmdd; a second session that day adds _2, _3 ...)
 
-Join on participantID. The session file is written after recording starts.
-Each trial row is saved when its trial ends, so a crash loses at most the
-running trial.
+The session file is written after recording starts. 
+Each trial row is saved when its trial ends (see experiment.py)
 """
 
 import csv
@@ -22,13 +21,13 @@ import config
 import design
 from config import NAMES, OBJECT_SETS
 
-# Config groups copied to the session file as "GROUP.key" columns.
-SETTINGS = ["DISPLAY", "GEOMETRY", "TIMING", "ORDER", "EULER_TOUR", "PHASES",
-            "COUNTERBALANCE", "DEMO_TRIALS",
-            "DWELL_SELECTION", "CENTRAL_FIXATION", "GAZE_STATE",
-            "CALIBRATION"]
+# Settings written to the session file as columns.
+SESSION_SETTINGS = ["DISPLAY", "GEOMETRY", "TIMING", "ORDER", "EULER_TOUR", "PHASES",
+                    "COUNTERBALANCE", "DEMO_TRIALS",
+                    "DWELL_SELECTION", "CENTRAL_FIXATION", "GAZE_STATE",
+                    "CALIBRATION"]
 
-# Marker name -> column holding the PsychoPy time (ms) the marker was written.
+# marker name on the gaze file: the PsychoPy time (ms) the marker was written.
 EVENT_TIMES = {
     "dot_on": "dotOn_ms",
     "fixation_held": "fixationHeld_ms",

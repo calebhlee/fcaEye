@@ -11,7 +11,7 @@ from psychopy import core, event, visual
 from psychopy.visual.textbox2 import textbox2 as _tb2
 
 import design
-import eventlog
+from data_record import eventlog
 import geometry
 from config import (DISPLAY, GEOMETRY, NAV_TEXT, PAGE_STYLE, PATHS,
                     PAUSE_BUTTONS, PRACTICE_NAMES, PRACTICE_OBJECTS,

@@ -65,8 +65,8 @@ DATA_DIR = PROJECT_DIR / "data"
 
 # Marker name -> trial-file column of that event's PsychoPy time. Taken from
 # the experiment's own trialdata.py, so the two can never disagree.
-sys.path.insert(0, str(PROJECT_DIR / "demo"))
-from trialdata import EVENT_TIMES, tracker_column  # noqa: E402
+sys.path.insert(0, str(PROJECT_DIR / "src"))
+from data_record.trialdata import EVENT_TIMES, tracker_column  # noqa: E402
 
 # Markers that close an open trial window. Before blank_on, this means
 # the trial was interrupted.
