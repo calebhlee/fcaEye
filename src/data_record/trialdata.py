@@ -27,10 +27,10 @@ SESSION_SETTINGS = ["DISPLAY", "GEOMETRY", "TIMING", "ORDER", "EULER_TOUR", "PHA
                     "DWELL_SELECTION", "CENTRAL_FIXATION", "GAZE_STATE",
                     "CALIBRATION"]
 
-# marker name on the gaze file: the PsychoPy time (ms) the marker was written.
-EVENT_TIMES = {
+# marker name on the gaze file": "the PsychoPy time (ms) the marker was written."
+MARKER_TIMES = {
     "dot_on": "dotOn_ms",
-    "fixation_held": "fixationHeld_ms",
+    "dot_fixated": "dotFixated_ms",
     "names_on": "namesOn_ms",
     "object_on": "objectOn_ms",
     "selection": "response_ms",
@@ -41,8 +41,11 @@ EVENT_TIMES = {
 
 
 def tracker_column(column):
-    """Tracker-clock column of an event: "objectOn_ms" -> "objectOnTracker_us"."""
-    return column.removesuffix("_ms") + "Tracker_us"
+    """
+    Coverts events in PsychoPy time (ms) to tracker time (us):
+    E.g., "objectOn_ms" -> "objectOn_us".
+    """
+    return column.removesuffix("_ms") + "_us"
 
 _file = None
 _writer = None
@@ -52,7 +55,7 @@ _participant_id = None
 def session_columns(participant, accuracy, screen_rate,
                     tracker_rate, tracked_eyes, stim_sets,
                     calibration_attempts):
-    """Session-wide values, except the config settings.
+    """Session-wide values and the config settings.
 
     Each design.StimulusSet in stim_sets gets its own columns, e.g.
     "phase1_context", "phase1_g0Name".
@@ -60,10 +63,9 @@ def session_columns(participant, accuracy, screen_rate,
     columns = dict(participant)
     columns.update({
         "groupCell": config.COUNTERBALANCE["groupCell"],
-        "phase2Relation": design.phase2_relation(),     # isom or shift
     })
     columns.update({
-        # To trace version differences later
+        # This is for version differences later
         "pythonVersion": platform.python_version(),
         "psychopyVersion": version("psychopy"),
         "os": platform.platform(),

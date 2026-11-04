@@ -108,7 +108,7 @@ def run_trial(pres, target, trial_n, previous_obj, feedback=True):
     response.STATES.start(trial_n, positions, pres.ring_order,
                           pres.name_radius_px, tracker_us("dot_on"))
     response.wait_for_central_fixation(pres, CENTRAL_FIXATION['centralHold_ms'])
-    mark("fixation_held")
+    mark("dot_fixated")
 
     # --- 2. preview -------------------------------------------------------
     # Random duration, so the object onset cannot be anticipated.
