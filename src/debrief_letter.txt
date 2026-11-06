@@ -16,7 +16,7 @@ This study was based on a branch of applied mathematics called Formal Concept An
 
 The shapes you saw were the objects in formal concepts; they differed in visual attributes, such as colour, pattern, and outline. Every shape had the same number of attributes. Formal concepts you learned were created based on which shape had which attributes. Some concepts were contained inside more general ones. For example, the shapes that shared two particular attributes formed a concept inside the larger concept of shapes that had just one of those attributes.
 
-On each trial, you saw a shape in the centre of the screen and were asked to look at the matching name among several arranged in a ring around it. The shape on the next trial was either related to the shape on the previous trial or not related. In the second part of the study, you learned a new set of shapes, with different attributes.
+On each trial, you saw a shape in the centre of the screen and were asked to look at the matching name among several arranged in a ring around it. The shape on the next trial was either related to the shape on the previous trial or not related. 
 
 Researchers have long debated whether people store concepts in a general-to-specific order, or whether this order is only a side effect of shared attributes (e.g., Collins & Quillian, 1969). In everyday concepts, the two usually go together. Our design separates them. The number of attributes two shapes share is the same in both directions. An order is not: if one concept contains another, the reverse is not true. So, if people represent this order, the direction between two related concepts should matter. We expected this to show in the order in which related shapes appeared in the trials.
 
