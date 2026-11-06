@@ -218,7 +218,7 @@ NAMES = {
 
 # Name set B, used with object set 2.
 NAMES_B = {
-    "g0": "Lobe",
+    "g0": "Pobe",
     "g1": "Mafu",
     "g2": "Nesi",
     "g3": "Ropa",
