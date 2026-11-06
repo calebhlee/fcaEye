@@ -66,14 +66,14 @@ DATA_DIR = PROJECT_DIR / "data"
 # Marker name -> trial-file column of that event's PsychoPy time. Taken from
 # the experiment's own trialdata.py, so the two can never disagree.
 sys.path.insert(0, str(PROJECT_DIR / "src"))
-from data_record.trialdata import EVENT_TIMES, tracker_column  # noqa: E402
+from data_record.trialdata import MARKER_TIMES, tracker_column  # noqa: E402
 
 # Markers that close an open trial window. Before blank_on, this means
 # the trial was interrupted.
 TRIAL_ENDERS = {
     "pause_on", "block_start", "block_end", "block_abandoned",
     "section_skipped", "trials_end", "session_end", "session_ended_early",
-    "session_aborted", "recalibration_start",
+    "session_aborted", "recalibration_start", "fixation_timeout",
 }
 
 OBJECTS = [f"g{i}" for i in range(8)]
@@ -230,14 +230,14 @@ def assign_trials(samples, markers, trials, iti_ms):
             previous_target = fields.get("target")
         elif event == "blank_on" and open_trial is not None:
             open_trial[2] = time_us[index] + iti_us + END_GRACE_MS * 1000
-        if event in EVENT_TIMES:
+        if event in MARKER_TIMES:
             trial_phase[index] = event
     close(n)
 
     # Latest trial marker, carried forward, but only inside its own window.
     marker_trial = np.full(n, -1)
     for index, event, fields in markers:
-        if event in EVENT_TIMES:
+        if event in MARKER_TIMES:
             marker_trial[index] = int(fields["trial"])
     phase_series = pd.Series(trial_phase).replace("", np.nan).ffill()
     owner = pd.Series(np.where(marker_trial >= 0, marker_trial, np.nan)).ffill()
@@ -484,10 +484,10 @@ def event_pairs(samples, markers, trials, column_for):
     by_trial = {int(t): row for t, row in zip(trials["trialN"], trials.to_dict("records"))}
     pairs = []
     for index, event, fields in markers:
-        if "trial" not in fields or event not in EVENT_TIMES:
+        if "trial" not in fields or event not in MARKER_TIMES:
             continue
         row = by_trial.get(int(fields["trial"]))
-        column = column_for(EVENT_TIMES[event])
+        column = column_for(MARKER_TIMES[event])
         if row is None or column not in row:
             continue
         value = pd.to_numeric(row[column], errors="coerce")

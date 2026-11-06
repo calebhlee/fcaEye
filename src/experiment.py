@@ -20,7 +20,7 @@ import calibrate
 import design
 import geometry
 import response
-from data_record import eventlog, trialdata
+from data_record import marker, trialdata
 from data_record.pid import assign_pid
 from config import (CENTRAL_FIXATION, COUNTERBALANCE, DEMO_TRIALS,
                     GENDER_OPTIONS,
@@ -73,6 +73,17 @@ def posttask_q(pres):
     return answers
 
 
+def interruption_reason(e):
+    """Value of the interruption column for an exception from the pause screen."""
+    if getattr(e, "fixation_timeout", False):
+        return "fixation_timeout"
+    if isinstance(e, RestartBlock):
+        return "recalibration" if e.recalibrate else "break"
+    if isinstance(e, SkipSection):
+        return "skip"
+    return "end"                      # EndSession
+
+
 def run_trial(pres, target, trial_n, previous_obj, feedback=True):
     """Run one trial and return its data row.
 
@@ -82,92 +93,29 @@ def run_trial(pres, target, trial_n, previous_obj, feedback=True):
 
     Names appear before the object so that cue-to-gaze time does not
     include searching for them. Each event is marked right after its flip.
+
+    If the pause screen interrupts the trial (RestartBlock, SkipSection or
+    EndSession), the row so far is attached to the exception as
+    e.trial_row, with outcome "interrupted" and the interruption column
+    set; the exception is then raised again. Columns of events the trial
+    did not reach stay empty.
     """
     times = {}
 
-    def mark(event, **fields):
+    def mark(event):
         # Three times per event: PsychoPy time and tracker time (both in
         # the trial file), and a marker in the tracker file.
-        column = trialdata.EVENT_TIMES[event]
+        column = trialdata.MARKER_TIMES[event]
         times[column] = core.getTime() * 1000         # PsychoPy clock, ms
-        times[trialdata.tracker_column(column)] = eventlog.tracker_time_us()
-        eventlog.mark(event, trial=trial_n, **fields)
+        times[trialdata.tracker_column(column)] = marker.tracker_time_us()
+        marker.mark(event, trial=trial_n)
 
     def tracker_us(event):
-        return times[trialdata.tracker_column(trialdata.EVENT_TIMES[event])]
+        return times[trialdata.tracker_column(trialdata.MARKER_TIMES[event])]
 
     rotation = geometry.ring_rotation()
     positions = geometry.ring_positions(rotation)
-
-    # --- 1. central fixation ---------------------------------------------
-    pres.draw_fixation()
-    pres.flip()
-    mark("dot_on", target=target, name=pres.stim_set.names[target],
-         rotation_deg=f"{rotation:.2f}")
-    # Live gaze state (whereGaze), from the dot until feedback or blank
-    response.STATES.start(trial_n, positions, pres.ring_order,
-                          pres.name_radius_px, tracker_us("dot_on"))
-    response.wait_for_central_fixation(pres, CENTRAL_FIXATION['centralHold_ms'])
-    mark("dot_fixated")
-
-    # --- 2. preview -------------------------------------------------------
-    # Random duration, so the object onset cannot be anticipated.
-    pres.draw_names(positions)
-    pres.draw_fixation()
-    pres.flip()
-    mark("names_on")
-    response.STATES.show_names(tracker_us("names_on"))
     preview_ms = random.uniform(*TIMING['previewDurRange_ms'])
-    response.wait_for_central_fixation(pres, preview_ms, positions)
-
-    # --- 3. cue and response ---------------------------------------------
-    responder = response.GazeDwellResponder(positions, pres.ring_order,
-                                            pres.name_radius_px)
-
-    pres.draw_names(positions)
-    pres.draw_object(target)
-    pres.flip()
-    mark("object_on")
-    responder.start()
-
-    # The responder is polled once per frame.
-    clock = core.Clock()
-    while (clock.getTime() * 1000 < TIMING['responseTimeout_ms']
-           and responder.result() is None):
-        check_escape()
-        responder.poll()
-        pres.draw_names(positions)
-        pres.draw_object(target)
-        pres.flip()
-
-    outcome = responder.result()
-    if outcome is None:
-        mark("timeout")
-    else:
-        mark("selection", object=outcome['selection'],
-             correct=outcome['selection'] == target)
-
-    # --- 4. feedback ------------------------------------------------------
-    selection = None if outcome is None else outcome['selection']
-    if feedback:
-        pres.draw_feedback(target, selection, positions)
-        pres.flip()
-        mark("feedback_on")
-        response.STATES.stop(tracker_us("feedback_on"))
-        core.wait(TIMING['feedbackDur_ms'] / 1000)    # core.wait takes s
-
-    # --- 5. blank interval ------------------------------------------------
-    pres.flip()
-    mark("blank_on")
-    response.STATES.stop(tracker_us("blank_on"))   # test blocks (no feedback)
-    core.wait(TIMING['iti_ms'] / 1000)
-
-    if outcome is None:
-        result = "timeout"
-    elif selection == target:
-        result = "correct"
-    else:
-        result = "incorrect"
 
     # None is written as an empty cell.
     row = {
@@ -182,12 +130,95 @@ def run_trial(pres, target, trial_n, previous_obj, feedback=True):
         x, y = positions[pres.ring_order.index(obj)]
         row[f"{obj}X"] = round(x, 1)
         row[f"{obj}Y"] = round(y, 1)
+    row["previewDur_ms"] = preview_ms
+
+    try:
+        # --- 1. central fixation -----------------------------------------
+        pres.draw_fixation()
+        pres.flip()
+        mark("dot_on")
+        # Live gaze state (live_gaze markers), from the dot until feedback
+        # or blank
+        response.STATES.start(trial_n, positions, pres.ring_order,
+                              pres.name_radius_px, tracker_us("dot_on"))
+        response.wait_for_central_fixation(pres,
+                                           CENTRAL_FIXATION['centralHold_ms'])
+        mark("dot_fixated")
+
+        # --- 2. preview ---------------------------------------------------
+        # Random duration, so the object onset cannot be anticipated.
+        pres.draw_names(positions)
+        pres.draw_fixation()
+        pres.flip()
+        mark("names_on")
+        response.STATES.show_names(tracker_us("names_on"))
+        response.wait_for_central_fixation(pres, preview_ms, positions)
+
+        # --- 3. cue and response -----------------------------------------
+        responder = response.GazeDwellResponder(positions, pres.ring_order,
+                                                pres.name_radius_px)
+
+        pres.draw_names(positions)
+        pres.draw_object(target)
+        pres.flip()
+        mark("object_on")
+        responder.start()
+
+        # The responder is polled once per frame.
+        clock = core.Clock()
+        while (clock.getTime() * 1000 < TIMING['responseTimeout_ms']
+               and responder.result() is None):
+            check_escape()
+            responder.poll()
+            pres.draw_names(positions)
+            pres.draw_object(target)
+            pres.flip()
+
+        outcome = responder.result()
+        if outcome is None:
+            mark("timeout")
+        else:
+            mark("selection")
+
+        # --- 4. feedback --------------------------------------------------
+        selection = None if outcome is None else outcome['selection']
+        if feedback:
+            pres.draw_feedback(target, selection, positions)
+            pres.flip()
+            mark("feedback_on")
+            response.STATES.stop(tracker_us("feedback_on"))
+            core.wait(TIMING['feedbackDur_ms'] / 1000)    # core.wait takes s
+
+        # --- 5. blank interval --------------------------------------------
+        pres.flip()
+        mark("blank_on")
+        response.STATES.stop(tracker_us("blank_on"))   # test blocks (no feedback)
+        core.wait(TIMING['iti_ms'] / 1000)
+
+    except (RestartBlock, SkipSection, EndSession) as e:
+        row.update({"outcome": "interrupted",
+                    "interruption": interruption_reason(e)})
+        if "objectOn_ms" in times and "namesOn_ms" in times:
+            row["previewActual_ms"] = times["objectOn_ms"] - times["namesOn_ms"]
+        row.update(times)
+        e.trial_row = row
+        raise
+
+    if outcome is None:
+        result = "timeout"
+    elif selection == target:
+        result = "correct"
+    else:
+        result = "incorrect"
+
     row.update({
-        "previewDur_ms": preview_ms,
+        # Longer than previewDur_ms if gaze left the dot during the preview
+        "previewActual_ms": times["objectOn_ms"] - times["namesOn_ms"],
         "selected": selection,
         "outcome": result,
         "selection_ms": None if outcome is None else outcome["selection_ms"],
-        "firstMove_ms": None if outcome is None else outcome["first_move_ms"],
+        "selectionStart_us":
+            None if outcome is None else outcome["selection_start_us"],
     })
     row.update(times)
     return row
@@ -200,22 +231,39 @@ def demo_cut(targets, stage):
 
 
 class Session:
-    """Session-wide trial count and rows.
+    """Session-wide trial count, rows and current calibration.
 
-    trial_n counts abandoned trials too, so trial numbers stay unique.
+    trial_n counts interrupted trials too, so trial numbers stay unique.
+    calibration_n: calibrations so far (0 if calibration was skipped); each
+    recalibration adds 1. The current calibration's error is written on
+    every trial row.
     """
 
-    def __init__(self):
+    def __init__(self, accuracy):
         self.trial_n = 0
         self.rows = []
+        self.calibration_n = 0
+        self.calibration = {}
+        self.new_calibration(accuracy)
+
+    def new_calibration(self, accuracy):
+        """Count one calibration (none if accuracy is empty) and keep its error."""
+        if accuracy:
+            self.calibration_n += 1
+        self.calibration = {
+            "calibrationN": self.calibration_n,
+            "calibrationErrorL_deg": calibration_error(accuracy, "left"),
+            "calibrationErrorR_deg": calibration_error(accuracy, "right"),
+        }
 
 
 def run_block(pres, session, block_info, targets, feedback):
     """Run one block of trials; return its rows.
 
-    block_info is written on every row of the block.
+    block_info and the current calibration are written on every row of the
+    block. An interrupted trial's row is written too, then the exception
+    goes on to the caller.
     """
-    eventlog.mark("block_start", **block_info)
     rows = []
     previous_obj = None
     pres.park_mouse()                   # cursor off the participant's screen
@@ -223,9 +271,17 @@ def run_block(pres, session, block_info, targets, feedback):
     try:
         for target in targets:
             session.trial_n += 1
-            trial = run_trial(pres, target, session.trial_n, previous_obj,
-                              feedback)
-            row = {**block_info, "feedback": feedback, **trial}
+            base = {**block_info, "feedback": feedback,
+                    **session.calibration}
+            try:
+                trial = run_trial(pres, target, session.trial_n,
+                                  previous_obj, feedback)
+            except (RestartBlock, SkipSection, EndSession) as e:
+                row = {**base, **e.trial_row}
+                trialdata.write_row(row)
+                session.rows.append(row)
+                raise
+            row = {**base, **trial}
             trialdata.write_row(row)
             session.rows.append(row)
             rows.append(row)
@@ -234,32 +290,25 @@ def run_block(pres, session, block_info, targets, feedback):
         # Runs before the caller handles RestartBlock, so Esc during a
         # recalibration is not treated as during trials.
         set_trials_running(False)
-    eventlog.mark("block_end", phase=block_info["phase"],
-                  block=block_info["block"])
     return rows
 
 
 def block_info(phase, block_n, attempt, stim_set, seed):
-    """Block columns, written on every trial row and in the block_start marker."""
+    """Block columns, written on every trial row."""
     return {"phase": phase, "block": block_n, "attempt": attempt,
             "stimSet": stim_set.label, "blockSeed": seed}
 
 
 def block_interrupted(pres, session, info, restart, page):
-    """Mark an interrupted block, recalibrate if asked, then show page.
+    """Recalibrate if asked, then show page.
 
-    reason in the marker: "recalibration" (Recalibrate) or "break"
-    (Continue: a break, e.g. the participant moved, then back to the task).
+    The interrupted trial's row (interruption column) is already written.
     """
     reason = "recalibration" if restart.recalibrate else "break"
-    # "lastTrial", not "trial": merge.py reads "trial=" only on trial events.
-    eventlog.mark("block_abandoned", phase=info["phase"], block=info["block"],
-                  attempt=info["attempt"], lastTrial=session.trial_n,
-                  reason=reason)
     print(f"{info['phase']} block {info['block']} interrupted ({reason}) "
           f"at trial {session.trial_n}.")
     if restart.recalibrate:
-        recalibrate(pres)
+        session.new_calibration(recalibrate(pres))
     pres.show_pages(SCREEN_TEXT[page])
 
 
@@ -293,12 +342,9 @@ def run_practice(pres, session, stim_set):
             key = pres.show_choice(SCREEN_TEXT["practiceChoice"],
                                    ["space", "right"])
             again = key == "space"
-            eventlog.mark("practice_choice", round=round_n,
-                          choice="again" if again else "move_on")
             if not again:
                 return
     except SkipSection:
-        eventlog.mark("section_skipped", phase="practice")
         print("Practice skipped by the researcher.")
 
 
@@ -350,14 +396,11 @@ def run_learning(pres, session, phase, stim_set):
                                   "next":
                                       SCREEN_TEXT["roundEndNext"][next_part]})
             if met:
-                eventlog.mark("criterion_met", phase=phase, blocks=completed)
                 return
 
-        eventlog.mark("criterion_not_met", phase=phase, blocks=completed)
         raise EndSession(f"{phase}: criterion not met in "
                          f"{PHASES['learnMaxBlocks']} blocks")
     except SkipSection:
-        eventlog.mark("section_skipped", phase=phase)
         print(f"{phase} skipped by the researcher.")
 
 
@@ -395,14 +438,13 @@ def run_test(pres, session, phase, stim_set):
                 block_interrupted(pres, session, info, restart, "blockRestart")
                 avoid_first = targets[0]
     except SkipSection:
-        eventlog.mark("section_skipped", phase=phase)
         print(f"{phase} skipped by the researcher.")
 
 
-def calibration_fields(accuracy):
-    """Calibration error per eye as marker fields, e.g. cal_left_deg=0.130."""
-    return {f"cal_{eye}_deg": f"{entry['accuracy_deg']:.3f}"
-            for eye, entry in accuracy.items()}
+def calibration_error(accuracy, eye):
+    """Calibration error (deg) of one eye ("left"/"right"), or None."""
+    entry = accuracy.get(eye)
+    return None if entry is None else round(entry["accuracy_deg"], 3)
 
 
 def run_calibration(pres):
@@ -434,7 +476,7 @@ def recalibrate(pres):
     pixels), and restarts its timestamps at each StartTracking and again
     about 0.4 s later. merge.py handles both.
     """
-    eventlog.mark("recalibration_start")
+    marker.mark("recalibration_start")
     # The marker is written with the next sample, so let one arrive first.
     core.wait(0.01)
     LiveTrack.StopTracking()
@@ -448,8 +490,8 @@ def recalibrate(pres):
     LiveTrack.ClearDataBuffer()
     LiveTrack.StartTracking()
     core.wait(0.5)        # past the tracker's clock reset, as at the start
-    eventlog.mark("recalibration_end", attempts=attempts,
-                  **calibration_fields(accuracy))
+    marker.mark("recalibration_end")
+    return accuracy
 
 
 def main():
@@ -514,7 +556,7 @@ def main():
 
         # Recording starts after calibration, so the file holds only
         # calibrated data.
-        path = eventlog.open_session(pid)
+        path = marker.open_session(pid)
         LiveTrack.StartTracking()
         print(f"Recording to {path}")
 
@@ -532,11 +574,9 @@ def main():
         session_path, trials_path = trialdata.open_files(path, pid, columns)
         print(f"Session to {session_path}")
         print(f"Trials to {trials_path}")
-        session = Session()
+        session = Session(accuracy)
 
-        # One marker only: markers sent close together can merge into one.
-        eventlog.mark("session_start", participant=pid,
-                      **calibration_fields(accuracy))
+        marker.mark("session_start")
 
         pres.show_pages(SCREEN_TEXT["practice"])
         run_practice(pres, session, practice_set)
@@ -552,25 +592,20 @@ def main():
         #   pres.show_pages(SCREEN_TEXT["test"])
         #   run_test(pres, session, "test2", phase2_set)
 
-        eventlog.mark("trials_end")
+        marker.mark("trials_end")
         pres.show_pages(SCREEN_TEXT["taskEnd"])
         posttask_q(pres)
-        eventlog.mark("session_end")
+        marker.mark("session_end")
         pres.show_debrief()
     except EndSession as e:
         # Data so far are on disk; the participant still gets the debrief.
         set_trials_running(False)
-        eventlog.mark("session_ended_early")    # no-op before recording
+        marker.mark("session_ended_early")    # no-op before recording
         print(f"\nENDED EARLY: {e}")
         pres.show_debrief()
-    except response.FixationTimeout as e:
-        eventlog.mark("session_aborted", reason="fixation_timeout")
-        print(f"\nABORTED: {e}")
-        print("Check that the eye is in view and that gaze reads near the "
-              "dot when the participant looks at it; recalibrate if not.")
     finally:
         trialdata.close_file()
-        eventlog.close_session()
+        marker.close_session()
         LiveTrack.StopTracking()
         LiveTrack.ClearDataBuffer()
         LiveTrack.Close()

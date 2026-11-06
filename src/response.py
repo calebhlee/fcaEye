@@ -14,21 +14,14 @@ import sys
 sys.path.insert(0, r"C:\Users\Public\Documents\CRS LiveTrack Python Bindings")
 import LiveTrack
 
-from data_record import eventlog
+from data_record import marker
 import geometry
 from config import CENTRAL_FIXATION, DWELL_SELECTION, GAZE_STATE
-from presentation import check_escape
+from presentation import (EndSession, RestartBlock, SkipSection,
+                          check_escape, pause_menu)
 
 import math
 from psychopy import core
-
-
-class FixationTimeout(Exception):
-    """Central fixation was not held in time.
-
-    Ends the session: the tracker has lost the eye or gaze reads far from
-    where the participant looks. A person must fix this.
-    """
 
 
 def gaze_point(s):
@@ -55,8 +48,9 @@ def read_samples():
     return samples
 
 
-def newest_tracked():
-    """Newest gaze position (px from screen centre), or None if lost.
+def newest_tracked_sample():
+    """(gaze position, tracker timestamp in us) of the newest tracked sample,
+    or (None, None) if lost.
 
     Shared by the fixation gate and the responder so both treat a lost eye
     the same way.
@@ -64,8 +58,13 @@ def newest_tracked():
     for s in reversed(read_samples()):
         pos = gaze_point(s)
         if pos is not None:
-            return pos
-    return None
+            return pos, s.Timestamp
+    return None, None
+
+
+def newest_tracked():
+    """Newest gaze position (px from screen centre), or None if lost."""
+    return newest_tracked_sample()[0]
 
 
 def wait_for_central_fixation(pres, hold_ms, positions=None):
@@ -75,7 +74,12 @@ def wait_for_central_fixation(pres, hold_ms, positions=None):
     Leaving the dot resets the count to zero. A loss of gaze up to
     blinkTimeout_ms pauses the count; a longer one resets it.
 
-    Raises FixationTimeout after CENTRAL_FIXATION["centralTimeout_ms"].
+    After CENTRAL_FIXATION["centralTimeout_ms"] without a full hold, writes a
+    fixation_timeout marker and opens the pause screen: usually the tracker
+    has lost the eye or gaze reads far from where the participant looks, and
+    the researcher decides (Recalibrate, Continue, Skip or End). During trials
+    the pause screen always raises (RestartBlock, SkipSection or EndSession),
+    so the block is interrupted as with Esc.
     """
     radius_px = CENTRAL_FIXATION['centralRadius_deg'] * geometry.px_per_deg()
     timeout_ms = CENTRAL_FIXATION['centralTimeout_ms']
@@ -93,10 +97,22 @@ def wait_for_central_fixation(pres, hold_ms, positions=None):
         last = now
 
         if now > timeout_ms:
-            raise FixationTimeout(
-                f"central fixation not held for {hold_ms:.0f} ms "
-                f"within the {timeout_ms} ms limit"
-            )
+            marker.mark("fixation_timeout", trial=STATES.trial_n)
+            print(f"\nFIXATION TIMEOUT: central fixation not held "
+                  f"for {hold_ms:.0f} ms within {timeout_ms} ms. Check that "
+                  "the eye is in view; recalibrate if gaze reads off the dot.")
+            try:
+                pause_menu()
+            except (RestartBlock, SkipSection, EndSession) as e:
+                # experiment.run_trial reads this for the interruption column
+                e.fixation_timeout = True
+                raise
+            # pause_menu returns only outside trials (not expected here):
+            # start the wait again.
+            read_samples()
+            clock.reset()
+            held_ms, last, gap_start = 0.0, 0.0, None
+            continue
 
         check_escape()
         pos = newest_tracked()
@@ -137,8 +153,6 @@ class GazeDwellResponder:
         self.clock = core.Clock()
 
         self.stability_px = DWELL_SELECTION["dwellRadius_deg"] * geometry.px_per_deg()
-        # Same radius as wait_for_central_fixation, so the two agree.
-        self.central_px = CENTRAL_FIXATION["centralRadius_deg"] * geometry.px_per_deg()
         self.dwell_ms = DWELL_SELECTION["dwell_ms"]
         self.blink_gap_ms = DWELL_SELECTION["blinkTimeout_ms"]
 
@@ -150,16 +164,17 @@ class GazeDwellResponder:
         """Reset the clock and state. Call at cue onset."""
         self.clock.reset()
         self.outcome = None
-        self.first_move_ms = None
         self.anchor = None        # gaze position where the current dwell began
+        self.anchor_us = None     # tracker time (us) of that sample
         self.dwell_on = None      # name at the anchor
         self.dwell_accum = 0.0    # ms
         self.last_poll = 0.0
         self.gap_start = None     # start of the current loss of gaze
         read_samples()  # samples before the cue: recorded as states, not judged
 
-    def _restart(self, pos, here):
+    def _restart(self, pos, here, sample_us):
         self.anchor = pos
+        self.anchor_us = sample_us
         self.dwell_on = here
         self.dwell_accum = 0.0
         self.gap_start = None
@@ -173,7 +188,7 @@ class GazeDwellResponder:
         dt = now - self.last_poll
         self.last_poll = now
 
-        pos = newest_tracked()
+        pos, sample_us = newest_tracked_sample()
 
         # No gaze (e.g. a blink): keep the count unless the loss is too long.
         if pos is None:
@@ -186,20 +201,16 @@ class GazeDwellResponder:
             return
         self.gap_start = None
 
-        if (self.first_move_ms is None
-                and math.hypot(*pos) > self.central_px):
-            self.first_move_ms = now
-
         here = geometry.object_at(pos, self.positions, self.ring_order,
                                   self.radius_px)
 
         if self.anchor is None:
-            self._restart(pos, here)
+            self._restart(pos, here, sample_us)
             return
 
         drifted = math.dist(pos, self.anchor) > self.stability_px
         if drifted or here != self.dwell_on:
-            self._restart(pos, here)
+            self._restart(pos, here, sample_us)
             return
 
         self.dwell_accum += dt
@@ -207,15 +218,17 @@ class GazeDwellResponder:
             self.outcome = {
                 "selection": self.dwell_on,
                 "selection_ms": now,
-                "first_move_ms": self.first_move_ms,
+                # start of the final (successful) dwell, tracker clock.
+                # One-frame precision: one sample is judged per frame.
+                "selection_start_us": self.anchor_us,
             }
 
     def result(self):
         """None until a selection is made, then a dict:
             selection       object name
             selection_ms    ms from start() to selection
-            first_move_ms   ms from start() until gaze first left the
-                            centre, or None
+            selection_start_us  tracker time (us) of the sample where the
+                            final dwell began
         """
         return self.outcome
 
@@ -238,7 +251,7 @@ class GazeStateRecorder:
     stay "lost".
 
     Changes go into one marker per frame, e.g.
-        event=gaze trial=5 states=g1:12345670;g2:12355670
+        event=live_gaze trial=5 states=g1:12345670;g2:12355670
     with the tracker time (us) each state began. "off" ends the recording.
     merge.py turns these into the whereGaze column, so the late arrival of a
     marker does not change the recorded times.
@@ -350,7 +363,7 @@ class GazeStateRecorder:
         if not self.changes:
             return
         text = ";".join(f"{state}:{us}" for state, us in self.changes)
-        eventlog.mark("gaze", trial=self.trial_n, states=text)
+        marker.mark("live_gaze", trial=self.trial_n, states=text)
         self.changes = []
 
 

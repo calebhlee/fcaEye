@@ -17,8 +17,7 @@ I = {
     'Laura': {'E', 'N', 'T', 'J'},
 }
 
-# Fixed orders, so the table and the lattice always list things the same way.
-# Attributes follow the opposite pairs, as on the slide.
+
 G = list(I)                                  # objects
 M = ['I', 'E', 'N', 'S', 'T', 'F', 'J', 'P']  # attributes
 

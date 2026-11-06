@@ -139,7 +139,7 @@ def o1_latency(visit_table, trials):
     rows = []
     for t in trials.itertuples():
         # Time zero: the object onset, in tracker time (us).
-        zero_us = t.objectOnTracker_us
+        zero_us = t.objectOn_us
         v = visit_table[visit_table["trialN"] == t.trialN]
 
         # arrive: first visit to a name that starts at or after time zero.

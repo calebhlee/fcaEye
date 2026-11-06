@@ -11,7 +11,7 @@ from psychopy import core, event, visual
 from psychopy.visual.textbox2 import textbox2 as _tb2
 
 import design
-from data_record import eventlog
+from data_record import marker
 import geometry
 from config import (DISPLAY, GEOMETRY, NAV_TEXT, PAGE_STYLE, PATHS,
                     PAUSE_BUTTONS, PRACTICE_NAMES, PRACTICE_OBJECTS,
@@ -198,7 +198,7 @@ def pause_menu():
 
     # merge.py ends an interrupted trial at pause_on, so pause time is not
     # trial time. No effect before recording starts.
-    eventlog.mark("pause_on", duringTrials=_trials_running)
+    marker.mark("pause_on")
     print("\nPAUSED. Click an option on the stimulus screen.")
     if _trials_running:
         options = ["continue", "recalibrate", "skip", "end"]
@@ -217,11 +217,11 @@ def pause_menu():
             [PAUSE_BUTTONS["back"], PAUSE_BUTTONS["endConfirm"]],
             danger=(1,))
         if confirm == 1:
-            eventlog.mark("pause_off", choice="end")
+            marker.mark("pause_off")
             raise EndSession("researcher chose End on the pause screen")
 
     print(f"Researcher chose: {chosen}")
-    eventlog.mark("pause_off", choice=chosen)
+    marker.mark("pause_off")
     event.clearEvents()                 # drop keys pressed during the pause
     if not _trials_running:
         return
