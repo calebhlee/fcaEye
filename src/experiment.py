@@ -84,10 +84,13 @@ def interruption_reason(e):
     return "end"                      # EndSession
 
 
-def run_trial(pres, target, trial_n, previous_obj, feedback=True):
+def run_trial(pres, target, trial_n, block_trial_n, previous_obj,
+              feedback=True):
     """Run one trial and return its data row.
 
     Args:
+        trial_n: session-wide trial number (sessionTrialN; the marker key).
+        block_trial_n: trial number within the block (blockTrialN).
         previous_obj: previous target (the prime); None on a block's first trial.
         feedback: False in test blocks.
 
@@ -119,7 +122,8 @@ def run_trial(pres, target, trial_n, previous_obj, feedback=True):
 
     # None is written as an empty cell.
     row = {
-        "trialN": trial_n,
+        "sessionTrialN": trial_n,
+        "blockTrialN": block_trial_n,
         "targetObj": target,
         "previousObj": previous_obj,
         "name": pres.stim_set.names[target],
@@ -198,8 +202,6 @@ def run_trial(pres, target, trial_n, previous_obj, feedback=True):
     except (RestartBlock, SkipSection, EndSession) as e:
         row.update({"outcome": "interrupted",
                     "interruption": interruption_reason(e)})
-        if "objectOn_ms" in times and "namesOn_ms" in times:
-            row["previewActual_ms"] = times["objectOn_ms"] - times["namesOn_ms"]
         row.update(times)
         e.trial_row = row
         raise
@@ -212,8 +214,6 @@ def run_trial(pres, target, trial_n, previous_obj, feedback=True):
         result = "incorrect"
 
     row.update({
-        # Longer than previewDur_ms if gaze left the dot during the preview
-        "previewActual_ms": times["objectOn_ms"] - times["namesOn_ms"],
         "selected": selection,
         "outcome": result,
         "selection_ms": None if outcome is None else outcome["selection_ms"],
@@ -269,13 +269,13 @@ def run_block(pres, session, block_info, targets, feedback):
     pres.park_mouse()                   # cursor off the participant's screen
     set_trials_running(True)
     try:
-        for target in targets:
+        for block_trial_n, target in enumerate(targets, start=1):
             session.trial_n += 1
             base = {**block_info, "feedback": feedback,
                     **session.calibration}
             try:
                 trial = run_trial(pres, target, session.trial_n,
-                                  previous_obj, feedback)
+                                  block_trial_n, previous_obj, feedback)
             except (RestartBlock, SkipSection, EndSession) as e:
                 row = {**base, **e.trial_row}
                 trialdata.write_row(row)
@@ -293,9 +293,13 @@ def run_block(pres, session, block_info, targets, feedback):
     return rows
 
 
-def block_info(phase, block_n, attempt, stim_set, seed):
-    """Block columns, written on every trial row."""
-    return {"phase": phase, "block": block_n, "attempt": attempt,
+def block_info(phase, block_n, test_attempt, stim_set, seed):
+    """Block columns, written on every trial row.
+
+    block_n is None for practice (block left empty); test_attempt is None
+    outside test (testAttempt left empty).
+    """
+    return {"phase": phase, "block": block_n, "testAttempt": test_attempt,
             "stimSet": stim_set.label, "blockSeed": seed}
 
 
@@ -312,15 +316,16 @@ def block_interrupted(pres, session, info, restart, page):
     pres.show_pages(SCREEN_TEXT[page])
 
 
-def run_block_until_done(pres, session, phase, block_n, stim_set,
+def run_block_until_done(pres, session, phase, stim_set,
                          make_targets, feedback):
-    """Run a block; if interrupted, run it again with a new seed (practice)."""
+    """Run a practice round; if interrupted, run it again with a new seed.
+
+    Practice rows leave block and testAttempt empty.
+    """
     pres.use_set(stim_set)
-    attempt = 0
     while True:
-        attempt += 1
         seed = design.new_seed()
-        info = block_info(phase, block_n, attempt, stim_set, seed)
+        info = block_info(phase, None, None, stim_set, seed)
         try:
             return run_block(pres, session, info, make_targets(seed), feedback)
         except RestartBlock as restart:
@@ -329,12 +334,10 @@ def run_block_until_done(pres, session, phase, block_n, stim_set,
 
 def run_practice(pres, session, stim_set):
     """Practice rounds until the participant chooses to move on."""
-    round_n = 0
     try:
         while True:
-            round_n += 1
             run_block_until_done(
-                pres, session, "practice", round_n, stim_set,
+                pres, session, "practice", stim_set,
                 lambda seed: demo_cut(design.shuffled_sequence(
                     seed, stim_set.objects, PHASES["practiceTrials"]),
                     "practice"),
@@ -365,7 +368,7 @@ def run_learning(pres, session, phase, stim_set):
         while completed < PHASES["learnMaxBlocks"]:
             block_n += 1
             seed = design.new_seed()
-            info = block_info(phase, block_n, 1, stim_set, seed)
+            info = block_info(phase, block_n, None, stim_set, seed)
             targets = demo_cut(design.shuffled_sequence(
                 seed, stim_set.objects, PHASES["learnBlockTrials"]), "learning")
             try:
@@ -616,8 +619,9 @@ def main():
     print(pid, participant)
     if session is not None:
         for r in session.rows:
-            print(r["phase"], r["block"], r["attempt"], r["trialN"],
-                  r["targetObj"], r["outcome"], r["selection_ms"])
+            print(r["phase"], r["block"], r["testAttempt"],
+                  r["sessionTrialN"], r["blockTrialN"],
+                  r["targetObj"], r["outcome"], r.get("selection_ms"))
 
 
 if __name__ == "__main__":

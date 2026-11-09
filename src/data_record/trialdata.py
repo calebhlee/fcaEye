@@ -106,7 +106,11 @@ def settings_columns():
 def trial_column_names():
     """Column names of the dict run_trial returns, in file order."""
     # phase: practice, learning1, test1 (learning2, test2 are off for now)
-    # attempt: 2+ if the block was abandoned and run again; keep the last.
+    # block: empty for practice
+    # testAttempt: test only; 2+ if the test block was interrupted and run
+    #   again (keep the last). Empty in practice and learning.
+    # sessionTrialN: across the session; the trial= key in the markers
+    # blockTrialN: 1, 2, ... within the block
     # blockSeed: rebuilds the trial order (design.shuffled_sequence for
     #   practice and learning, design.trial_sequence for test)
     # interruption: break, recalibration, skip, end or fixation_timeout
@@ -114,13 +118,13 @@ def trial_column_names():
     # calibrationN: calibrations so far; errors are of that calibration
     # selectionStart_us: tracker time of the sample where the final dwell
     #   began (one-frame precision)
-    names = ["phase", "block", "attempt", "stimSet", "blockSeed", "feedback",
+    names = ["phase", "block", "testAttempt", "stimSet", "blockSeed", "feedback",
              "calibrationN", "calibrationErrorL_deg", "calibrationErrorR_deg",
-             "trialN", "targetObj", "previousObj", "name", "targetImage",
+             "sessionTrialN", "blockTrialN", "targetObj", "previousObj", "name", "targetImage",
              "rotation_deg"]
     for obj in NAMES:
         names += [f"{obj}X", f"{obj}Y"]
-    names += ["previewDur_ms", "previewActual_ms", "selected", "outcome",
+    names += ["previewDur_ms", "selected", "outcome",
               "interruption", "selection_ms", "selectionStart_us"]
     event_columns = list(dict.fromkeys(MARKER_TIMES.values()))   # unique, in order
     names += event_columns
