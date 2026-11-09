@@ -21,8 +21,8 @@ import design
 import geometry
 import response
 from data_record import marker, trialdata
-from data_record.pid import assign_pid
-from config import (CENTRAL_FIXATION, COUNTERBALANCE, DEMO_TRIALS, DISPLAY,
+from data_record.pid import assign_pid, count_participants
+from config import (CENTRAL_FIXATION, DEMO_TRIALS, DISPLAY,
                     GENDER_OPTIONS,
                     IMAGE_NAME_ORDER, PATHS, PHASES, POSTTASK, SCREEN_TEXT,
                     SESSION, TIMING)
@@ -569,30 +569,28 @@ def recalibrate(pres, positions):
 
 def main():
     geometry.check_feedback_fit()
-    # One ring rotation for the whole session; stops here if the setting
-    # is invalid.
-    rotation = geometry.ring_rotation()
-    positions = geometry.ring_positions(rotation)
     design.check_design()
 
-    # One stimulus set (plus practice). Phase 2 is disabled.
-    sets = design.stimulus_sets()
+    # Counterbalance version from the participants already in the key file.
+    # Decided before calibration: validation uses the same ring positions.
+    version = design.version_from_count(count_participants())
+    ring_order, rotation = design.counterbalance(version)
+    positions = geometry.ring_positions(rotation)
+    print(f"Counterbalance version {version} of {design.n_versions()}: "
+          f"ring order {' '.join(ring_order)}, rotation {rotation} deg")
+
+    sets = design.stimulus_sets(ring_order)
     practice_set = sets["practice"]
-    phase1_set = sets["phase1"]
-    # PHASE 2 (disabled):
-    # phase2_set = sets["phase2"]
-    used_sets = [practice_set, phase1_set]
-    print(f"Group cell {COUNTERBALANCE['groupCell']}: "
-          f"context {phase1_set.context_label}, "
-          f"object set {phase1_set.object_set}")
+    task_set = sets["task"]
+    used_sets = [practice_set, task_set]
     # Builds one test order now, so an Euler tour problem shows up early.
-    test_length = len(design.trial_sequence(1, phase1_set.objects))
+    test_length = len(design.trial_sequence(1, task_set.objects))
     if any(v is not None for v in DEMO_TRIALS.values()):
         print(f"DEMO: blocks cut to {DEMO_TRIALS} (config.DEMO_TRIALS)")
     print(f"Practice rounds of {PHASES['practiceTrials']}; learning blocks of "
           f"{PHASES['learnBlockTrials']}; test blocks of {test_length}")
 
-    pres = Presentation()
+    pres = Presentation(sets)
     screen_rate = pres.win.getActualFrameRate()    # None if it was unstable
 
     LiveTrack.Init()
@@ -644,7 +642,7 @@ def main():
         columns = trialdata.session_columns(
             participant, accuracy,
             screen_rate, tracker_rate, tracked_eyes, used_sets,
-            calibration_attempts, rotation, positions)
+            calibration_attempts, version, rotation, positions)
         # Needed later to judge where gaze was
         columns["nameSelectRadius_px"] = round(pres.name_radius_px, 2)
         columns["px_per_deg"] = round(geometry.px_per_deg(), 4)
@@ -662,15 +660,9 @@ def main():
         run_practice(pres, session, practice_set)
 
         pres.show_pages(SCREEN_TEXT["learning"])
-        run_learning(pres, session, "learning", phase1_set)
+        run_learning(pres, session, "learning", task_set)
         pres.show_pages(SCREEN_TEXT["test"])
-        run_test(pres, session, "test", phase1_set)
-
-        # PHASE 2 (disabled):
-        #   pres.show_pages(SCREEN_TEXT["learning2"])
-        #   run_learning(pres, session, "learning2", phase2_set)
-        #   pres.show_pages(SCREEN_TEXT["test"])
-        #   run_test(pres, session, "test2", phase2_set)
+        run_test(pres, session, "test", task_set)
 
         marker.mark("trials_end")
         pres.show_pages(SCREEN_TEXT["taskEnd"])

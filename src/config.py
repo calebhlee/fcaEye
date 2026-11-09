@@ -35,28 +35,30 @@ DEMO_TRIALS = {
 }
 
 # 2. COUNTERBALANCING ======================================================
+# Each participant gets a version, counted automatically from the participant
+# key file (design.counterbalance). A version is one ring order and one ring
+# rotation. Every 7 participants get each order once and each rotation once;
+# after 49 participants every order has been paired with every rotation once.
 COUNTERBALANCE = {
-    "groupCell": 1,                 # row of GROUP_CELLS (1-8)
-}
-
-# Each row: (context label, object set) for phase 1 and phase 2.
-# isom = same context in both phases; shift = different context.
-# Phase 2 is not run for now; its settings are kept for later.
-GROUP_CELLS = {
-    #    phase 1     phase 2
-    1: [("C1", 1), ("C1", 2)],     # isom
-    2: [("C1", 1), ("C2", 2)],     # shift
-    3: [("C2", 1), ("C2", 2)],     # isom
-    4: [("C2", 1), ("C1", 2)],     # shift
-    5: [("C1", 2), ("C1", 1)],     # isom
-    6: [("C1", 2), ("C2", 1)],     # shift
-    7: [("C2", 2), ("C2", 1)],     # isom
-    8: [("C2", 2), ("C1", 1)],     # shift
+    # Names on the ring, slot 1 to 8 (counter-clockwise). Across the 7 orders
+    # every pair of objects sits side by side exactly twice.
+    "ringOrders": [
+        ["g0", "g5", "g6", "g3", "g7", "g2", "g1", "g4"],
+        ["g0", "g4", "g2", "g1", "g5", "g7", "g6", "g3"],
+        ["g0", "g7", "g4", "g1", "g5", "g6", "g2", "g3"],
+        ["g0", "g2", "g4", "g7", "g5", "g3", "g1", "g6"],
+        ["g0", "g6", "g7", "g1", "g3", "g4", "g5", "g2"],
+        ["g0", "g1", "g6", "g4", "g5", "g2", "g3", "g7"],
+        ["g0", "g1", "g7", "g2", "g6", "g4", "g3", "g5"],
+    ],
+    # Angle of slot 1 (deg), counter-clockwise from 3 o'clock: 360/7 steps,
+    # so slot 1 lands in 7 different directions around the circle.
+    "rotations_deg": [0.0, 51.43, 102.86, 154.29, 205.71, 257.14, 308.57],
 }
 
 
 # 3. SESSION STRUCTURE =====================================================
-#   practice -> learning 1 -> test 1
+#   practice -> learning -> test
 
 PHASES = {
     "practiceTrials": 1,           # trials per practice round
@@ -163,8 +165,6 @@ GEOMETRY = {
     "feedbackNameOffset_px": 70,     # name centre to object centre in feedback
                                      # (object below the name, or above where
                                      # it would not fit)
-    "ringRotation": "random",        # degrees, or "random" (drawn once per
-                                     # session, 0 to one slot angle)
 }
 
 
@@ -196,14 +196,6 @@ CONTEXT = {
     "g7": [0, 1, 1, 0, 1, 0],
 }
 
-# PHASE 2 (disabled): kept only because GROUP_CELLS refers to it; to be
-# replaced in the counterbalancing work.
-CONTEXT_2 = {obj: list(row) for obj, row in CONTEXT.items()}
-
-# Labels used in GROUP_CELLS. PLACEHOLDER contents until the final
-# contexts exist.
-CONTEXTS = {"C1": CONTEXT, "C2": CONTEXT_2}
-
 # Visual feature for each attribute, and what 1 and 0 mean (stimuli.py).
 ATTRIBUTES = {
     "m0": {"feature": "colour", 1: "orange", 0: "gray"},
@@ -218,7 +210,7 @@ ATTRIBUTES = {
 # E.g. 100001.png = orange circle.
 IMAGE_NAME_ORDER = ["colour", "stripes", "outline", "hole", "slot", "circle"]
 
-# Name set A, used with object set 1.
+# Object names
 NAMES = {
     "g0": "Guli",
     "g1": "Domu",
@@ -228,19 +220,6 @@ NAMES = {
     "g5": "Kesa",
     "g6": "Pino",
     "g7": "Ruba",
-}
-
-# Name set B, used with object set 2.
-# PHASE 2 (disabled): kept only because GROUP_CELLS / OBJECT_SETS refer to it.
-NAMES_B = {
-    "g0": "Pobe",
-    "g1": "Mafu",
-    "g2": "Nesi",
-    "g3": "Ropa",
-    "g4": "Sife",
-    "g5": "Tuni",
-    "g6": "Wako",
-    "g7": "Zeli",
 }
 
 # Practice names
@@ -272,24 +251,6 @@ PRACTICE_SIZES = {
                             # square, 75% of objSize_px)
     "smallScale": 0.6,      # small size as a fraction of big
 }
-
-# Object sets: images, features and names. Set 1 uses name set A,
-# set 2 name set B.
-# SCAFFOLD: set 2 uses set 1's features and images until its own exist.
-# PHASE 2 (disabled): set 2 kept only because GROUP_CELLS refers to it.
-OBJECT_SETS = {
-    1: {"names": NAMES, "stimDir": PATHS["stimDir"],
-        "attributes": ATTRIBUTES, "imageNameOrder": IMAGE_NAME_ORDER},
-    2: {"names": NAMES_B, "stimDir": PATHS["stimDir"],
-        "attributes": ATTRIBUTES, "imageNameOrder": IMAGE_NAME_ORDER},
-}
-
-# Name positions on the ring, each object once. Slot 1 is at 3 o'clock
-# (before ringRotation); later slots go counter-clockwise.
-ORDER = {
-    "ringOrder": ["g0", "g1", "g2", "g3", "g4", "g5", "g6", "g7"],
-}
-
 
 # 9. TEXT ==================================================================
 
@@ -427,12 +388,6 @@ SCREEN_TEXT = {
     ],
 
     
-    # PHASE 2 (disabled): before learning 2
-    # "learning2": [
-    #     ("Learning",
-    #      "You will now learn another new set of shapes with new names."),
-    # ],
-
     # After the last test, before the post-task questions
     "taskEnd": [
         ("", "You have now finished the experiment.\n\n"

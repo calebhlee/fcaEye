@@ -3,6 +3,8 @@
 
 """LiveTrack gaze calibration."""
 
+import contextlib
+import io
 import sys
 sys.path.insert(0, r"C:\Users\Public\Documents\CRS LiveTrack Python Bindings")
 import LiveTrack
@@ -14,7 +16,7 @@ import numpy as np
 from psychopy import visual
 
 import geometry
-from config import CALIBRATION
+from config import CALIBRATION, VALIDATION
 from presentation import check_escape
 
 
@@ -224,3 +226,144 @@ def calibration_summary(result):
                          f"{entry['accuracy_deg']:.2f} deg, "
                          f"{entry['n_points']} of {n_targets} dots acquired")
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------- validation
+
+def _read_buffer():
+    """All samples since the last read (calibrated results), print silenced."""
+    with contextlib.redirect_stdout(io.StringIO()):
+        return LiveTrack.GetBufferedEyePositions(1, -1, 1)
+
+
+def _median_point(points):
+    """Median (x, y) of a list of points, or None if the list is empty."""
+    if not points:
+        return None
+    return (float(np.median([x for x, _ in points])),
+            float(np.median([y for _, y in points])))
+
+
+def gaze_validation(win, points_px):
+    """Show each point once (random order); return the gaze measured there.
+
+    Needs SetResultsTypeCalibrated() and StartTracking() first: gaze must be
+    in screen pixels. Each dot stays VALIDATION["windowEnd_ms"]; gaze is
+    the median of the samples from windowStart_ms to windowEnd_ms after the
+    dot appeared (tracker time). A fixed window, not "wait until gaze is on
+    the dot": with a bad calibration gaze never reads on the dot.
+
+    Returns one dict per point, in the order of points_px:
+        target  (x, y) px
+        left, right, both   median gaze (x, y) px, or None if not tracked
+        n       samples in the window with at least one eye tracked
+    """
+    px_per_deg = geometry.px_per_deg()
+    start_us = VALIDATION["windowStart_ms"] * 1000
+    end_us = VALIDATION["windowEnd_ms"] * 1000
+
+    outer = visual.Circle(win, units="pix",
+                          radius=CALIBRATION["fixOutDot_deg"] * px_per_deg / 2,
+                          fillColor=[-1, -1, -1], lineColor=[-1, -1, -1])
+    inner = visual.Circle(win, units="pix",
+                          radius=CALIBRATION["fixInDot_deg"] * px_per_deg / 2,
+                          fillColor=[1, 1, 1], lineColor=[-1, -1, -1])
+
+    order = np.random.permutation(len(points_px))
+    results = [None] * len(points_px)
+    for i in order:
+        x, y = points_px[i]
+        outer.pos = inner.pos = [x, y]
+        outer.draw()
+        inner.draw()
+        win.flip()
+        _read_buffer()                              # samples before the dot
+        onset_us = LiveTrack.GetLastResult().Timestamp
+
+        left, right, both = [], [], []
+        t0 = time.perf_counter()
+        # Keep the dot up until the window has passed (+50 ms for samples
+        # still on their way to the PC).
+        while (time.perf_counter() - t0) * 1000 < VALIDATION["windowEnd_ms"] + 50:
+            check_escape()
+            for s in _read_buffer():
+                if not onset_us + start_us <= s.Timestamp < onset_us + end_us:
+                    continue
+                eyes = []
+                if s.Tracked:
+                    left.append((s.GazeX, s.GazeY))
+                    eyes.append((s.GazeX, s.GazeY))
+                if s.TrackedRight:
+                    right.append((s.GazeXRight, s.GazeYRight))
+                    eyes.append((s.GazeXRight, s.GazeYRight))
+                if eyes:
+                    both.append((sum(e[0] for e in eyes) / len(eyes),
+                                 sum(e[1] for e in eyes) / len(eyes)))
+            outer.draw()
+            inner.draw()
+            win.flip()
+
+        results[i] = {"target": (x, y), "left": _median_point(left),
+                      "right": _median_point(right),
+                      "both": _median_point(both), "n": len(both)}
+    win.flip()
+    return results
+
+
+def report_validation(results, labels):
+    """Print the validation per dot; return (passed, marker fields, screen text).
+
+    Passes if, at every dot, the both-eye error is below
+    VALIDATION["maxError_deg"] and the distance between the eyes is below
+    VALIDATION["maxEyeDistance_deg"]. A dot without gaze from both eyes fails.
+    """
+    px_per_deg = geometry.px_per_deg()
+    max_error = VALIDATION["maxError_deg"]
+    max_distance = VALIDATION["maxEyeDistance_deg"]
+
+    def deg(a, b):
+        return None if a is None or b is None else math.dist(a, b) / px_per_deg
+
+    print(f"\n--- Validation (limits: error < {max_error} deg, "
+          f"eye distance < {max_distance} deg) ---")
+    passed = True
+    errors, distances = [], []
+    for label, r in zip(labels, results):
+        error = deg(r["both"], r["target"])
+        distance = deg(r["left"], r["right"])
+        ok = (error is not None and distance is not None
+              and error < max_error and distance < max_distance)
+        passed = passed and ok
+        if error is not None:
+            errors.append(error)
+        if distance is not None:
+            distances.append(distance)
+        left = deg(r["left"], r["target"])
+        right = deg(r["right"], r["target"])
+
+        def show(v):
+            return "  -  " if v is None else f"{v:.2f}"
+        print(f"{label:>7}: error {show(error)} (L {show(left)}, "
+              f"R {show(right)}), eye distance {show(distance)} deg, "
+              f"{r['n']} samples  [{'PASS' if ok else 'FAIL'}]")
+
+    worst_error = max(errors) if errors else None
+    worst_distance = max(distances) if distances else None
+    print("Validation PASSED." if passed else "Validation FAILED.")
+
+    def fmt(v):
+        return "none" if v is None else f"{v:.2f}"
+    fields = {"maxError_deg": fmt(worst_error),
+              "maxEyeDistance_deg": fmt(worst_distance),
+              "passed": passed}
+    n_fail = sum(1 for label, r in zip(labels, results)
+                 if not (deg(r["both"], r["target"]) is not None
+                         and deg(r["left"], r["right"]) is not None
+                         and deg(r["both"], r["target"]) < max_error
+                         and deg(r["left"], r["right"]) < max_distance))
+    text = (f"Largest error: {fmt(worst_error)} deg (limit {max_error})\n"
+            f"Largest distance between the eyes: {fmt(worst_distance)} deg "
+            f"(limit {max_distance})\n"
+            f"Dots within the limits: {len(results) - n_fail} of {len(results)}"
+            f"\n\n{'PASSED' if passed else 'NOT PASSED'}")
+    return passed, fields, text

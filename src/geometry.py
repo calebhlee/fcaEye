@@ -7,7 +7,6 @@ Positions are in pixels, origin at the screen centre, y up (PsychoPy).
 """
 
 import math
-import random
 
 from config import CALIBRATION, DISPLAY, GEOMETRY
 
@@ -19,25 +18,9 @@ def px_per_deg():
     return mm_per_deg * px_per_mm
 
 
-def ring_rotation():
-    """Ring rotation in degrees for one session, from GEOMETRY['ringRotation'].
-
-    Called once at session start (experiment.main); every trial uses it.
-
-    0 = first slot at 3 o'clock; positive is counter-clockwise. "random"
-    draws from 0 to one slot angle; larger values only repeat layouts.
-    """
-    value = GEOMETRY['ringRotation']
-    if value == "random":
-        return random.uniform(0, 360 / GEOMETRY['objCount'])
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return float(value)
-    raise ValueError(f"GEOMETRY['ringRotation'] must be a number of degrees "
-                     f"or \"random\"; it is {value!r}")
-
-
 def ring_positions(rotation_deg):
-    """(x, y) of each ring slot, in slot order, rotated by rotation_deg."""
+    """(x, y) of each ring slot, in slot order. rotation_deg: angle of slot
+    1, counter-clockwise from 3 o'clock (design.counterbalance)."""
     n = GEOMETRY['objCount']
     r = GEOMETRY['ringRadius']
 
@@ -108,7 +91,7 @@ def feedback_obj_pos(name_pos):
 def check_feedback_fit():
     """Raise an error if the feedback circle can leave the screen.
 
-    Tests every whole degree, since "random" rotation allows any angle.
+    Tests every whole degree, so any rotation in the list fits.
     """
     r_ring = GEOMETRY['ringRadius']
     for deg in range(360):

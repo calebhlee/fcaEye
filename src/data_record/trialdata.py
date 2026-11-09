@@ -19,10 +19,10 @@ from importlib.metadata import version
 
 import config
 import design
-from config import OBJECT_SETS
+from config import ATTRIBUTES
 
 # Settings written to the session file as columns.
-SESSION_SETTINGS = ["DISPLAY", "GEOMETRY", "TIMING", "ORDER", "EULER_TOUR", "PHASES",
+SESSION_SETTINGS = ["DISPLAY", "GEOMETRY", "TIMING", "EULER_TOUR", "PHASES",
                     "COUNTERBALANCE", "DEMO_TRIALS",
                     "DWELL_SELECTION", "CENTRAL_FIXATION", "GAZE_STATE",
                     "CALIBRATION", "VALIDATION"]
@@ -54,18 +54,19 @@ _participant_id = None
 
 def session_columns(participant, accuracy, screen_rate,
                     tracker_rate, tracked_eyes, stim_sets,
-                    calibration_attempts, rotation, positions):
+                    calibration_attempts, counterbalance_version, rotation,
+                    positions):
     """Session-wide values and the config settings.
 
-    Phase 1 (the one stimulus set) gets columns without a prefix, e.g.
-    "context", "g0Name", "g0Image", "ringOrder", "g0X"; the practice set
+    The task set gets columns without a prefix, e.g. "attributes",
+    "g0Name", "g0Image", "ringOrder", "g0X"; the practice set
     gets "practice_g0Name" and "practice_ringOrder" (no positions).
     rotation (deg) and positions (ring slots, from geometry.ring_positions)
     are fixed for the session.
     """
     columns = dict(participant)
     columns.update({
-        "groupCell": config.COUNTERBALANCE["groupCell"],
+        "counterbalanceVersion": counterbalance_version,
     })
     columns.update({
         # This is for version differences later
@@ -86,10 +87,7 @@ def session_columns(participant, accuracy, screen_rate,
         is_practice = stim_set.context is None
         p = "practice_" if is_practice else ""        # column prefix
         if not is_practice:
-            columns["context"] = stim_set.context_label
-            columns["objectSet"] = stim_set.object_set
-            columns["attributes"] = design.attributes_text(
-                OBJECT_SETS[stim_set.object_set]["attributes"])
+            columns["attributes"] = design.attributes_text(ATTRIBUTES)
         for obj in stim_set.objects:
             columns[f"{p}{obj}Name"] = stim_set.names[obj]
         if not is_practice:

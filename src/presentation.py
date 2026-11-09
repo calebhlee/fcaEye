@@ -10,7 +10,6 @@ import sys
 from psychopy import core, event, visual
 from psychopy.visual.textbox2 import textbox2 as _tb2
 
-import design
 from data_record import marker
 import geometry
 from config import (DISPLAY, GEOMETRY, NAV_TEXT, PAGE_STYLE, PATHS,
@@ -258,7 +257,7 @@ def pause_menu():
 class Presentation:
     """The window and all stimuli drawn in it."""
 
-    def __init__(self):
+    def __init__(self, sets):
         """Open the window and build all stimuli."""
         self.win = visual.Window(
             size=DISPLAY['size'],
@@ -296,12 +295,12 @@ class Presentation:
                         lineColor="red", lineWidth=5),
         ]
 
-        # Build every set once so all names can be measured; start on phase1.
+        # Build every set once so all names can be measured; start on the task.
+        # sets: design.stimulus_sets(ring_order) from experiment.main.
         self._built_sets = {}
-        sets = design.stimulus_sets()
         for stim_set in sets.values():
             self.use_set(stim_set)
-        self.use_set(sets["phase1"])
+        self.use_set(sets["task"])
 
         # One name selection radius for the whole session, from the largest
         # name of all sets, so the rule is the same in every phase.

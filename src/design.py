@@ -12,28 +12,53 @@ import sys
 from dataclasses import dataclass
 
 from config import (ATTRIBUTES, COUNTERBALANCE, DEMO_TRIALS, EULER_TOUR,
-                    GEOMETRY, GROUP_CELLS, IMAGE_NAME_ORDER, NAMES,
-                    OBJECT_SETS, ORDER, PHASES, PRACTICE_NAMES,
-                    PRACTICE_OBJECTS,
-                    PROJECT_DIR)
-from config import CONTEXT, CONTEXTS
+                    GEOMETRY, IMAGE_NAME_ORDER, NAMES, PATHS, PHASES,
+                    PRACTICE_NAMES, PRACTICE_OBJECTS, PROJECT_DIR)
+from config import CONTEXT
 
 # eulerTours/ sits at the project root, outside src/
 sys.path.insert(0, str(PROJECT_DIR))
 from eulerTours import euler
 
 
-def object_image(obj, context=CONTEXT, object_set=1):
+def object_image(obj):
     """Image file name for one object, e.g. "111000.png".
 
     The same row gives a different file under a different ATTRIBUTES mapping.
     """
-    attributes = OBJECT_SETS[object_set]["attributes"]
-    name_order = OBJECT_SETS[object_set]["imageNameOrder"]
     ft = {}
-    for attr, value in zip(attributes, context[obj]):
-        ft[attributes[attr]["feature"]] = value
-    return "".join(str(ft[feature]) for feature in name_order) + ".png"
+    for attr, value in zip(ATTRIBUTES, CONTEXT[obj]):
+        ft[ATTRIBUTES[attr]["feature"]] = value
+    return "".join(str(ft[feature]) for feature in IMAGE_NAME_ORDER) + ".png"
+
+
+def n_versions():
+    """Number of counterbalance versions: ring orders x rotations."""
+    return (len(COUNTERBALANCE["ringOrders"])
+            * len(COUNTERBALANCE["rotations_deg"]))
+
+
+def counterbalance(version):
+    """(ring order, rotation in deg) of a counterbalance version (1, 2, ...).
+
+    With n orders and n rotations: version v (from 0) uses order v mod n and
+    rotation (order + v // n) mod n. So each run of n versions has every
+    order once and every rotation once, and the n x n versions together
+    have every order-rotation pair once (a Latin square).
+    """
+    orders = COUNTERBALANCE["ringOrders"]
+    rotations = COUNTERBALANCE["rotations_deg"]
+    n = len(orders)
+    v = version - 1
+    order_i = v % n
+    rotation_i = (order_i + v // n) % n
+    return list(orders[order_i]), float(rotations[rotation_i])
+
+
+def version_from_count(n_participants):
+    """Counterbalance version for the next participant, given how many are
+    already in the key file: 0 -> 1, 1 -> 2, ... cycling after n_versions()."""
+    return n_participants % n_versions() + 1
 
 
 @dataclass
@@ -42,11 +67,10 @@ class StimulusSet:
 
     All sets use labels g0-g7, so trial files keep the same columns.
 
-    label:      "practice" or "phase1" (phase 2 is disabled)
+    label:      "practice" or "task"
     context:    {object: attribute row}; None for the practice
     images:     {object: image file name}; None for the practice
     ring_order: objects in ring-slot order
-    context_label, object_set: the GROUP_CELLS entry used (empty for practice)
     """
     label: str
     names: dict
@@ -54,8 +78,6 @@ class StimulusSet:
     images: dict | None
     ring_order: list
     stim_dir: object = None
-    context_label: str = ""
-    object_set: int | None = None
 
     @property
     def objects(self):
@@ -68,37 +90,24 @@ class StimulusSet:
         return " ".join(str(v) for v in self.context[obj])
 
 
-# PHASE 2 (disabled):
-# def phase2_relation():
-#     """ "isom" if both phases use the same context, otherwise "shift"."""
-#     (context1, _), (context2, _) = GROUP_CELLS[COUNTERBALANCE["groupCell"]]
-#     return "isom" if context1 == context2 else "shift"
+def stimulus_sets(ring_order):
+    """{label: StimulusSet} for the practice and the task.
 
-
-def stimulus_sets():
-    """{label: StimulusSet} for the practice and phase 1.
-
-    Phase 1 uses the first entry of the GROUP_CELLS row chosen by
-    COUNTERBALANCE["groupCell"]. Phase 2 (the second entry) is disabled.
+    ring_order: this session's order for the task (counterbalance); the
+    practice keeps its own fixed order.
     """
-    sets = {"practice": StimulusSet("practice", PRACTICE_NAMES, None, None,
-                                    list(PRACTICE_NAMES))}
-    cell = GROUP_CELLS[COUNTERBALANCE["groupCell"]]
-    # PHASE 2 (disabled): was "for phase, (...) in enumerate(cell, start=1):"
-    for phase, (context_label, object_set) in enumerate(cell[:1], start=1):
-        context = CONTEXTS[context_label]
-        sets[f"phase{phase}"] = StimulusSet(
-            label=f"phase{phase}",
-            names=OBJECT_SETS[object_set]["names"],
-            context=context,
-            images={obj: object_image(obj, context, object_set)
-                    for obj in context},
-            ring_order=list(ORDER["ringOrder"]),
-            stim_dir=OBJECT_SETS[object_set]["stimDir"],
-            context_label=context_label,
-            object_set=object_set,
-        )
-    return sets
+    return {
+        "practice": StimulusSet("practice", PRACTICE_NAMES, None, None,
+                                list(PRACTICE_NAMES)),
+        "task": StimulusSet(
+            label="task",
+            names=NAMES,
+            context=CONTEXT,
+            images={obj: object_image(obj) for obj in CONTEXT},
+            ring_order=list(ring_order),
+            stim_dir=PATHS["stimDir"],
+        ),
+    }
 
 
 def new_seed():
@@ -177,10 +186,20 @@ def check_design():
             raise ValueError(f"CONTEXT[{obj!r}] = {row}: it needs "
                              f"{len(ATTRIBUTES)} values, each 0 or 1")
 
-    ring = ORDER["ringOrder"]
-    if sorted(ring) != sorted(CONTEXT):
-        raise ValueError(f"ORDER['ringOrder'] = {ring}: it must hold each of "
-                         f"{list(CONTEXT)} exactly once")
+    orders = COUNTERBALANCE["ringOrders"]
+    rotations = COUNTERBALANCE["rotations_deg"]
+    for k, ring in enumerate(orders, start=1):
+        if sorted(ring) != sorted(CONTEXT):
+            raise ValueError(f"COUNTERBALANCE['ringOrders'] order {k} = {ring}: "
+                             f"it must hold each of {list(CONTEXT)} exactly once")
+    if len(rotations) != len(orders):
+        raise ValueError("COUNTERBALANCE needs as many rotations_deg as "
+                         f"ringOrders ({len(rotations)} vs {len(orders)}), "
+                         "for the Latin square in design.counterbalance")
+    if any(isinstance(r, bool) or not isinstance(r, (int, float))
+           for r in rotations):
+        raise ValueError("COUNTERBALANCE['rotations_deg'] must be numbers "
+                         f"of degrees; it is {rotations}")
 
     if not isinstance(EULER_TOUR["allow_stay"], bool):
         raise ValueError("EULER_TOUR['allow_stay'] must be True or False; "
@@ -219,37 +238,10 @@ def check_design():
                              "(white/black, square/triangle, big/small)")
     if len(set(PRACTICE_OBJECTS.values())) != len(PRACTICE_OBJECTS):
         raise ValueError("PRACTICE_OBJECTS: two objects look the same")
-    if COUNTERBALANCE["groupCell"] not in GROUP_CELLS:
-        raise ValueError(f"COUNTERBALANCE['groupCell'] must be one of "
-                         f"{list(GROUP_CELLS)}; it is "
-                         f"{COUNTERBALANCE['groupCell']!r}")
-    for n, cell in GROUP_CELLS.items():
-        contexts = [context for context, _ in cell]
-        sets = [object_set for _, object_set in cell]
-        if any(c not in CONTEXTS for c in contexts):
-            raise ValueError(f"GROUP_CELLS[{n}] = {cell}: contexts must be "
-                             f"from {list(CONTEXTS)}")
-        if sorted(sets) != sorted(OBJECT_SETS):
-            raise ValueError(f"GROUP_CELLS[{n}] = {cell}: each of "
-                             f"{list(OBJECT_SETS)} must appear once")
-    # Each combination (2 x 2 x 2) must appear once
-    combos = {(cell[0][0], cell[0][0] == cell[1][0], cell[0][1])
-              for cell in GROUP_CELLS.values()}
-    if len(combos) != len(GROUP_CELLS):
-        raise ValueError("GROUP_CELLS repeats a combination of phase-1 "
-                         "context, isom/shift and first object set")
-    # PHASE 2 (disabled):
-    # if set(NAMES.values()) & set(NAMES_B.values()):
-    #     raise ValueError("NAMES and NAMES_B share names: "
-    #                      f"{set(NAMES.values()) & set(NAMES_B.values())}")
     for label, names in (("PRACTICE_NAMES", PRACTICE_NAMES),):
         if list(names) != list(CONTEXT):
             raise ValueError(f"{label} must use the same object labels "
                              "as CONTEXT")
-    for label, context in CONTEXTS.items():
-        if list(context) != list(CONTEXT):
-            raise ValueError(f"context {label} must use the same object "
-                             "labels as CONTEXT")
 
     images = {obj: object_image(obj) for obj in CONTEXT}
 
@@ -262,10 +254,7 @@ def check_design():
                   f"CONTEXT, so both will show {image}")
         seen.setdefault(image, obj)
 
-    # PHASE 2 (disabled): was (stimulus_sets()["phase1"], stimulus_sets()["phase2"])
-    for half in (stimulus_sets()["phase1"],):
-        missing = [image for image in half.images.values()
-                   if not (half.stim_dir / image).exists()]
-        if missing:
-            raise FileNotFoundError(f"{half.label}: not in "
-                                    f"{half.stim_dir}: {missing}")
+    missing = [image for image in images.values()
+               if not (PATHS["stimDir"] / image).exists()]
+    if missing:
+        raise FileNotFoundError(f"not in {PATHS['stimDir']}: {missing}")
