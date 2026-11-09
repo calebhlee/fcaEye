@@ -151,7 +151,8 @@ GEOMETRY = {
     "feedbackNameOffset_px": 70,     # name centre to object centre in feedback
                                      # (object below the name, or above where
                                      # it would not fit)
-    "ringRotation": 0,               # degrees, or "random" (new each trial)
+    "ringRotation": "random",        # degrees, or "random" (drawn once per
+                                     # session, 0 to one slot angle)
 }
 
 
@@ -183,7 +184,8 @@ CONTEXT = {
     "g7": [0, 1, 1, 0, 1, 0],
 }
 
-# SCAFFOLD: copy of CONTEXT; replace with the second context.
+# PHASE 2 (disabled): kept only because GROUP_CELLS refers to it; to be
+# replaced in the counterbalancing work.
 CONTEXT_2 = {obj: list(row) for obj, row in CONTEXT.items()}
 
 # Labels used in GROUP_CELLS. PLACEHOLDER contents until the final
@@ -217,6 +219,7 @@ NAMES = {
 }
 
 # Name set B, used with object set 2.
+# PHASE 2 (disabled): kept only because GROUP_CELLS / OBJECT_SETS refer to it.
 NAMES_B = {
     "g0": "Pobe",
     "g1": "Mafu",
@@ -261,6 +264,7 @@ PRACTICE_SIZES = {
 # Object sets: images, features and names. Set 1 uses name set A,
 # set 2 name set B.
 # SCAFFOLD: set 2 uses set 1's features and images until its own exist.
+# PHASE 2 (disabled): set 2 kept only because GROUP_CELLS refers to it.
 OBJECT_SETS = {
     1: {"names": NAMES, "stimDir": PATHS["stimDir"],
         "attributes": ATTRIBUTES, "imageNameOrder": IMAGE_NAME_ORDER},
@@ -397,11 +401,11 @@ SCREEN_TEXT = {
     ],
 
     
-    # Before learning 2 (not used now; kept for later)
-    "learning2": [
-        ("Learning",
-         "You will now learn another new set of shapes with new names."),
-    ],
+    # PHASE 2 (disabled): before learning 2
+    # "learning2": [
+    #     ("Learning",
+    #      "You will now learn another new set of shapes with new names."),
+    # ],
 
     # After the last test, before the post-task questions
     "taskEnd": [

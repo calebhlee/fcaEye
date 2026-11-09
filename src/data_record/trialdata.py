@@ -19,7 +19,7 @@ from importlib.metadata import version
 
 import config
 import design
-from config import NAMES, OBJECT_SETS
+from config import OBJECT_SETS
 
 # Settings written to the session file as columns.
 SESSION_SETTINGS = ["DISPLAY", "GEOMETRY", "TIMING", "ORDER", "EULER_TOUR", "PHASES",
@@ -54,11 +54,14 @@ _participant_id = None
 
 def session_columns(participant, accuracy, screen_rate,
                     tracker_rate, tracked_eyes, stim_sets,
-                    calibration_attempts):
+                    calibration_attempts, rotation, positions):
     """Session-wide values and the config settings.
 
-    Each design.StimulusSet in stim_sets gets its own columns, e.g.
-    "phase1_context", "phase1_g0Name".
+    Phase 1 (the one stimulus set) gets columns without a prefix, e.g.
+    "context", "g0Name", "g0Image", "ringOrder", "g0X"; the practice set
+    gets "practice_g0Name" and "practice_ringOrder" (no positions).
+    rotation (deg) and positions (ring slots, from geometry.ring_positions)
+    are fixed for the session.
     """
     columns = dict(participant)
     columns.update({
@@ -77,20 +80,27 @@ def session_columns(participant, accuracy, screen_rate,
         "calibrationAttempts": calibration_attempts,
         "calibrationErrorLeft_deg": accuracy.get("left", {}).get("accuracy_deg", ""),
         "calibrationErrorRight_deg": accuracy.get("right", {}).get("accuracy_deg", ""),
+        "rotation_deg": round(rotation, 2),
     })
     for stim_set in stim_sets:
-        label = stim_set.label
-        if stim_set.context is not None:
-            columns[f"{label}_context"] = stim_set.context_label
-            columns[f"{label}_objectSet"] = stim_set.object_set
-            columns[f"{label}_attributes"] = design.attributes_text(
+        is_practice = stim_set.context is None
+        p = "practice_" if is_practice else ""        # column prefix
+        if not is_practice:
+            columns["context"] = stim_set.context_label
+            columns["objectSet"] = stim_set.object_set
+            columns["attributes"] = design.attributes_text(
                 OBJECT_SETS[stim_set.object_set]["attributes"])
         for obj in stim_set.objects:
-            columns[f"{label}_{obj}Name"] = stim_set.names[obj]
-        if stim_set.context is not None:
+            columns[f"{p}{obj}Name"] = stim_set.names[obj]
+        if not is_practice:
             for obj in stim_set.objects:
-                columns[f"{label}_{obj}Image"] = stim_set.image_code(obj)
-        columns[f"{label}_ringOrder"] = "|".join(stim_set.ring_order)
+                columns[f"{obj}Image"] = stim_set.image_code(obj)
+        columns[f"{p}ringOrder"] = "|".join(stim_set.ring_order)
+        if not is_practice:
+            for obj in stim_set.objects:
+                x, y = positions[stim_set.ring_order.index(obj)]
+                columns[f"{obj}X"] = round(x, 1)
+                columns[f"{obj}Y"] = round(y, 1)
     return columns
 
 
@@ -105,7 +115,7 @@ def settings_columns():
 
 def trial_column_names():
     """Column names of the dict run_trial returns, in file order."""
-    # phase: practice, learning1, test1 (learning2, test2 are off for now)
+    # phase: practice, learning or test (phase 2 is disabled)
     # block: empty for practice
     # testAttempt: test only; 2+ if the test block was interrupted and run
     #   again (keep the last). Empty in practice and learning.
@@ -118,14 +128,13 @@ def trial_column_names():
     # calibrationN: calibrations so far; errors are of that calibration
     # selectionStart_us: tracker time of the sample where the final dwell
     #   began (one-frame precision)
-    names = ["phase", "block", "testAttempt", "stimSet", "blockSeed", "feedback",
-             "calibrationN", "calibrationErrorL_deg", "calibrationErrorR_deg",
-             "sessionTrialN", "blockTrialN", "targetObj", "previousObj", "name", "targetImage",
-             "rotation_deg"]
-    for obj in NAMES:
-        names += [f"{obj}X", f"{obj}Y"]
-    names += ["previewDur_ms", "selected", "outcome",
-              "interruption", "selection_ms", "selectionStart_us"]
+    names = ["phase", "block", "sessionTrialN", "blockTrialN",
+             "targetObj", "previousObj", "selectedObj", "outcome",
+             "name", "targetImage",
+             "interruption", "calibrationN",
+             "calibrationErrorL_deg", "calibrationErrorR_deg", "feedback",
+             "testAttempt", "blockSeed",
+             "previewDur_ms", "selection_ms", "selectionStart_us"]
     event_columns = list(dict.fromkeys(MARKER_TIMES.values()))   # unique, in order
     names += event_columns
     names += [tracker_column(c) for c in event_columns]

@@ -20,7 +20,9 @@ def px_per_deg():
 
 
 def ring_rotation():
-    """Ring rotation in degrees for one trial, from GEOMETRY['ringRotation'].
+    """Ring rotation in degrees for one session, from GEOMETRY['ringRotation'].
+
+    Called once at session start (experiment.main); every trial uses it.
 
     0 = first slot at 3 o'clock; positive is counter-clockwise. "random"
     draws from 0 to one slot angle; larger values only repeat layouts.

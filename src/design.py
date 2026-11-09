@@ -12,7 +12,7 @@ import sys
 from dataclasses import dataclass
 
 from config import (ATTRIBUTES, COUNTERBALANCE, DEMO_TRIALS, EULER_TOUR,
-                    GEOMETRY, GROUP_CELLS, IMAGE_NAME_ORDER, NAMES, NAMES_B,
+                    GEOMETRY, GROUP_CELLS, IMAGE_NAME_ORDER, NAMES,
                     OBJECT_SETS, ORDER, PHASES, PRACTICE_NAMES,
                     PRACTICE_OBJECTS,
                     PROJECT_DIR)
@@ -42,7 +42,7 @@ class StimulusSet:
 
     All sets use labels g0-g7, so trial files keep the same columns.
 
-    label:      "practice", "phase1" or "phase2"
+    label:      "practice" or "phase1" (phase 2 is disabled)
     context:    {object: attribute row}; None for the practice
     images:     {object: image file name}; None for the practice
     ring_order: objects in ring-slot order
@@ -68,21 +68,24 @@ class StimulusSet:
         return " ".join(str(v) for v in self.context[obj])
 
 
-def phase2_relation():
-    """ "isom" if both phases use the same context, otherwise "shift"."""
-    (context1, _), (context2, _) = GROUP_CELLS[COUNTERBALANCE["groupCell"]]
-    return "isom" if context1 == context2 else "shift"
+# PHASE 2 (disabled):
+# def phase2_relation():
+#     """ "isom" if both phases use the same context, otherwise "shift"."""
+#     (context1, _), (context2, _) = GROUP_CELLS[COUNTERBALANCE["groupCell"]]
+#     return "isom" if context1 == context2 else "shift"
 
 
 def stimulus_sets():
-    """{label: StimulusSet} for the practice and both phases.
+    """{label: StimulusSet} for the practice and phase 1.
 
-    Phases use the GROUP_CELLS row chosen by COUNTERBALANCE["groupCell"].
+    Phase 1 uses the first entry of the GROUP_CELLS row chosen by
+    COUNTERBALANCE["groupCell"]. Phase 2 (the second entry) is disabled.
     """
     sets = {"practice": StimulusSet("practice", PRACTICE_NAMES, None, None,
                                     list(PRACTICE_NAMES))}
     cell = GROUP_CELLS[COUNTERBALANCE["groupCell"]]
-    for phase, (context_label, object_set) in enumerate(cell, start=1):
+    # PHASE 2 (disabled): was "for phase, (...) in enumerate(cell, start=1):"
+    for phase, (context_label, object_set) in enumerate(cell[:1], start=1):
         context = CONTEXTS[context_label]
         sets[f"phase{phase}"] = StimulusSet(
             label=f"phase{phase}",
@@ -235,11 +238,11 @@ def check_design():
     if len(combos) != len(GROUP_CELLS):
         raise ValueError("GROUP_CELLS repeats a combination of phase-1 "
                          "context, isom/shift and first object set")
-    if set(NAMES.values()) & set(NAMES_B.values()):
-        raise ValueError("NAMES and NAMES_B share names: "
-                         f"{set(NAMES.values()) & set(NAMES_B.values())}")
-    for label, names in (("NAMES_B", NAMES_B),
-                         ("PRACTICE_NAMES", PRACTICE_NAMES)):
+    # PHASE 2 (disabled):
+    # if set(NAMES.values()) & set(NAMES_B.values()):
+    #     raise ValueError("NAMES and NAMES_B share names: "
+    #                      f"{set(NAMES.values()) & set(NAMES_B.values())}")
+    for label, names in (("PRACTICE_NAMES", PRACTICE_NAMES),):
         if list(names) != list(CONTEXT):
             raise ValueError(f"{label} must use the same object labels "
                              "as CONTEXT")
@@ -259,8 +262,8 @@ def check_design():
                   f"CONTEXT, so both will show {image}")
         seen.setdefault(image, obj)
 
-    # Both phases are checked, although phase 2 is not run for now
-    for half in (stimulus_sets()["phase1"], stimulus_sets()["phase2"]):
+    # PHASE 2 (disabled): was (stimulus_sets()["phase1"], stimulus_sets()["phase2"])
+    for half in (stimulus_sets()["phase1"],):
         missing = [image for image in half.images.values()
                    if not (half.stim_dir / image).exists()]
         if missing:

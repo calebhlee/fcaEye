@@ -4,8 +4,8 @@
 """Session and trial flow.
 
 Session: greeting, demographics -> instructions -> calibration ->
-recording starts -> practice rounds -> learning 1 (until criterion) ->
-test 1 -> post-task questions -> thank you, debrief letter.
+recording starts -> practice rounds -> learning (until criterion) ->
+test -> post-task questions -> thank you, debrief letter.
 Esc opens the pause screen (presentation.pause_menu).
 """
 
@@ -84,13 +84,15 @@ def interruption_reason(e):
     return "end"                      # EndSession
 
 
-def run_trial(pres, target, trial_n, block_trial_n, previous_obj,
+def run_trial(pres, target, trial_n, block_trial_n, previous_obj, positions,
               feedback=True):
     """Run one trial and return its data row.
 
     Args:
         trial_n: session-wide trial number (sessionTrialN; the marker key).
         block_trial_n: trial number within the block (blockTrialN).
+        positions: ring slot positions, fixed for the session
+            (Session.positions; in the session file).
         previous_obj: previous target (the prime); None on a block's first trial.
         feedback: False in test blocks.
 
@@ -116,8 +118,6 @@ def run_trial(pres, target, trial_n, block_trial_n, previous_obj,
     def tracker_us(event):
         return times[trialdata.tracker_column(trialdata.MARKER_TIMES[event])]
 
-    rotation = geometry.ring_rotation()
-    positions = geometry.ring_positions(rotation)
     preview_ms = random.uniform(*TIMING['previewDurRange_ms'])
 
     # None is written as an empty cell.
@@ -128,13 +128,8 @@ def run_trial(pres, target, trial_n, block_trial_n, previous_obj,
         "previousObj": previous_obj,
         "name": pres.stim_set.names[target],
         "targetImage": pres.stim_set.image_code(target),
-        "rotation_deg": rotation,
+        "previewDur_ms": preview_ms,
     }
-    for obj in pres.ring_order:
-        x, y = positions[pres.ring_order.index(obj)]
-        row[f"{obj}X"] = round(x, 1)
-        row[f"{obj}Y"] = round(y, 1)
-    row["previewDur_ms"] = preview_ms
 
     try:
         # --- 1. central fixation -----------------------------------------
@@ -214,7 +209,7 @@ def run_trial(pres, target, trial_n, block_trial_n, previous_obj,
         result = "incorrect"
 
     row.update({
-        "selected": selection,
+        "selectedObj": selection,
         "outcome": result,
         "selection_ms": None if outcome is None else outcome["selection_ms"],
         "selectionStart_us":
@@ -237,10 +232,12 @@ class Session:
     calibration_n: calibrations so far (0 if calibration was skipped); each
     recalibration adds 1. The current calibration's error is written on
     every trial row.
+    positions: ring slot positions (one ring rotation for the session).
     """
 
-    def __init__(self, accuracy):
+    def __init__(self, accuracy, positions):
         self.trial_n = 0
+        self.positions = positions
         self.rows = []
         self.calibration_n = 0
         self.calibration = {}
@@ -275,7 +272,8 @@ def run_block(pres, session, block_info, targets, feedback):
                     **session.calibration}
             try:
                 trial = run_trial(pres, target, session.trial_n,
-                                  block_trial_n, previous_obj, feedback)
+                                  block_trial_n, previous_obj,
+                                  session.positions, feedback)
             except (RestartBlock, SkipSection, EndSession) as e:
                 row = {**base, **e.trial_row}
                 trialdata.write_row(row)
@@ -293,14 +291,14 @@ def run_block(pres, session, block_info, targets, feedback):
     return rows
 
 
-def block_info(phase, block_n, test_attempt, stim_set, seed):
+def block_info(phase, block_n, test_attempt, seed):
     """Block columns, written on every trial row.
 
     block_n is None for practice (block left empty); test_attempt is None
     outside test (testAttempt left empty).
     """
     return {"phase": phase, "block": block_n, "testAttempt": test_attempt,
-            "stimSet": stim_set.label, "blockSeed": seed}
+            "blockSeed": seed}
 
 
 def block_interrupted(pres, session, info, restart, page):
@@ -325,7 +323,7 @@ def run_block_until_done(pres, session, phase, stim_set,
     pres.use_set(stim_set)
     while True:
         seed = design.new_seed()
-        info = block_info(phase, None, None, stim_set, seed)
+        info = block_info(phase, None, None, seed)
         try:
             return run_block(pres, session, info, make_targets(seed), feedback)
         except RestartBlock as restart:
@@ -368,7 +366,7 @@ def run_learning(pres, session, phase, stim_set):
         while completed < PHASES["learnMaxBlocks"]:
             block_n += 1
             seed = design.new_seed()
-            info = block_info(phase, block_n, None, stim_set, seed)
+            info = block_info(phase, block_n, None, seed)
             targets = demo_cut(design.shuffled_sequence(
                 seed, stim_set.objects, PHASES["learnBlockTrials"]), "learning")
             try:
@@ -433,7 +431,7 @@ def run_test(pres, session, phase, stim_set):
         while True:
             attempt += 1
             seed, targets = test_targets(stim_set, avoid_first)
-            info = block_info(phase, 1, attempt, stim_set, seed)
+            info = block_info(phase, 1, attempt, seed)
             try:
                 run_block(pres, session, info, targets, feedback=False)
                 return
@@ -499,20 +497,22 @@ def recalibrate(pres):
 
 def main():
     geometry.check_feedback_fit()
-    geometry.ring_rotation()          # stops here if the setting is invalid
+    # One ring rotation for the whole session; stops here if the setting
+    # is invalid.
+    rotation = geometry.ring_rotation()
+    positions = geometry.ring_positions(rotation)
     design.check_design()
 
-    # Phase 2 is not run for now, but its set is still built and logged.
+    # One stimulus set (plus practice). Phase 2 is disabled.
     sets = design.stimulus_sets()
     practice_set = sets["practice"]
     phase1_set = sets["phase1"]
-    phase2_set = sets["phase2"]
-    used_sets = [practice_set, phase1_set, phase2_set]
-    print(f"Group cell {COUNTERBALANCE['groupCell']} "
-          f"({design.phase2_relation()}):")
-    for phase in (phase1_set, phase2_set):
-        print(f"  {phase.label}: context {phase.context_label}, "
-              f"object set {phase.object_set}")
+    # PHASE 2 (disabled):
+    # phase2_set = sets["phase2"]
+    used_sets = [practice_set, phase1_set]
+    print(f"Group cell {COUNTERBALANCE['groupCell']}: "
+          f"context {phase1_set.context_label}, "
+          f"object set {phase1_set.object_set}")
     # Builds one test order now, so an Euler tour problem shows up early.
     test_length = len(design.trial_sequence(1, phase1_set.objects))
     if any(v is not None for v in DEMO_TRIALS.values()):
@@ -570,14 +570,14 @@ def main():
         columns = trialdata.session_columns(
             participant, accuracy,
             screen_rate, tracker_rate, tracked_eyes, used_sets,
-            calibration_attempts)
+            calibration_attempts, rotation, positions)
         # Needed later to judge where gaze was
         columns["nameSelectRadius_px"] = round(pres.name_radius_px, 2)
         columns["px_per_deg"] = round(geometry.px_per_deg(), 4)
         session_path, trials_path = trialdata.open_files(path, pid, columns)
         print(f"Session to {session_path}")
         print(f"Trials to {trials_path}")
-        session = Session(accuracy)
+        session = Session(accuracy, positions)
 
         marker.mark("session_start")
 
@@ -585,11 +585,11 @@ def main():
         run_practice(pres, session, practice_set)
 
         pres.show_pages(SCREEN_TEXT["learning"])
-        run_learning(pres, session, "learning1", phase1_set)
+        run_learning(pres, session, "learning", phase1_set)
         pres.show_pages(SCREEN_TEXT["test"])
-        run_test(pres, session, "test1", phase1_set)
+        run_test(pres, session, "test", phase1_set)
 
-        # Learning 2 and test 2 are off for now. To add them back:
+        # PHASE 2 (disabled):
         #   pres.show_pages(SCREEN_TEXT["learning2"])
         #   run_learning(pres, session, "learning2", phase2_set)
         #   pres.show_pages(SCREEN_TEXT["test"])
