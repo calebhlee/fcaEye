@@ -22,12 +22,14 @@ import geometry
 import response
 from data_record import marker, trialdata
 from data_record.pid import assign_pid
-from config import (CENTRAL_FIXATION, COUNTERBALANCE, DEMO_TRIALS,
+from config import (CENTRAL_FIXATION, COUNTERBALANCE, DEMO_TRIALS, DISPLAY,
                     GENDER_OPTIONS,
                     IMAGE_NAME_ORDER, PATHS, PHASES, POSTTASK, SCREEN_TEXT,
                     SESSION, TIMING)
 from presentation import (EndSession, Presentation, RestartBlock,
-                          SkipSection, check_escape, set_trials_running)
+                          SkipSection, check_escape,
+                          set_between_blocks_recalibration,
+                          set_trials_running)
 
 
 def ask_demographics(pres):
@@ -310,7 +312,7 @@ def block_interrupted(pres, session, info, restart, page):
     print(f"{info['phase']} block {info['block']} interrupted ({reason}) "
           f"at trial {session.trial_n}.")
     if restart.recalibrate:
-        session.new_calibration(recalibrate(pres))
+        session.new_calibration(recalibrate(pres, session.positions))
     pres.show_pages(SCREEN_TEXT[page])
 
 
@@ -391,11 +393,17 @@ def run_learning(pres, session, phase, stim_set):
                 next_part = "end"
             else:
                 next_part = "round"
-            pres.show_pages(SCREEN_TEXT["roundEnd"],
-                            fill={"round": block_n,
-                                  "percent": round(100 * proportion),
-                                  "next":
-                                      SCREEN_TEXT["roundEndNext"][next_part]})
+            # Esc here offers Recalibrate (between blocks)
+            set_between_blocks_recalibration(
+                lambda: recalibrate_between_blocks(pres, session))
+            try:
+                pres.show_pages(SCREEN_TEXT["roundEnd"],
+                                fill={"round": block_n,
+                                      "percent": round(100 * proportion),
+                                      "next":
+                                          SCREEN_TEXT["roundEndNext"][next_part]})
+            finally:
+                set_between_blocks_recalibration(None)
             if met:
                 return
 
@@ -460,17 +468,90 @@ def run_calibration(pres):
         attempts += 1
         pres.park_mouse()
         accuracy = calibrate.gaze_calibration(pres.win)
+        # Result per eye on the screen, e.g. "Left eye: 0.16 deg, 9 of 9 dots"
+        fill = {"result": calibrate.calibration_summary(accuracy)}
         if calibrate.report_calibration(accuracy, attempts):
             print(f"PASSED on attempt {attempts}.")
-            pres.show_pages(SCREEN_TEXT["calibrationDone"])
+            pres.show_pages(SCREEN_TEXT["calibrationDone"], fill=fill)
             return accuracy, attempts
         print(f"FAILED (attempt {attempts}); running it again. Adjust the "
               "camera or the participant if needed (Esc: pause screen).")
-        pres.show_pages(SCREEN_TEXT["calibrationFailed"])
+        pres.show_pages(SCREEN_TEXT["calibrationFailed"], fill=fill)
 
 
-def recalibrate(pres):
-    """Calibrate again mid-session, with the data file open.
+def recalibrate_between_blocks(pres, session):
+    """Recalibrate from the pause screen on the round-end screen.
+
+    That screen is white (text page), so the trial background is set for the
+    calibration and the white restored after. The next block's rows get the
+    new calibrationN and errors.
+    """
+    print("Recalibrating between blocks.")
+    previous = list(pres.win.color)
+    pres.win.color = DISPLAY["bgColour"]
+    pres.win.clearBuffer()
+    try:
+        session.new_calibration(recalibrate(pres, session.positions))
+    finally:
+        pres.win.color = previous
+        pres.win.clearBuffer()
+
+
+def to_calibrated_mode():
+    """Tracker to screen-pixel results, tracking. Set while stopped, as in
+    CRS's demos; waits past the clock reset about 0.4 s after the start."""
+    LiveTrack.StopTracking()
+    LiveTrack.SetResultsTypeCalibrated()
+    LiveTrack.ClearDataBuffer()
+    LiveTrack.StartTracking()
+    core.wait(0.5)
+
+
+def to_raw_mode():
+    """Tracker to raw results (pupil/glint vectors), tracking: calibration."""
+    LiveTrack.StopTracking()
+    LiveTrack.SetResultsTypeRaw()
+    LiveTrack.StartTracking()
+
+
+def calibrate_and_validate(pres, positions):
+    """Calibrate, then validate, until the researcher accepts.
+
+    Expects raw results and tracking; leaves screen-pixel results and
+    tracking. Validation dots: the centre and the 8 ring slots (positions).
+    After each validation the researcher presses right arrow (accept) or R
+    (calibrate again), whether it passed or not.
+    Marker (only while recording): validation_start, then validation_result
+    with maxError_deg, maxEyeDistance_deg, passed and choice.
+    Returns (accuracy, calibration attempts, validation marker fields).
+    """
+    points = [(0.0, 0.0)] + list(positions)
+    labels = ["centre"] + [f"slot{i + 1}" for i in range(len(positions))]
+    total_attempts = 0
+    while True:
+        accuracy, attempts = run_calibration(pres)
+        total_attempts += attempts
+        to_calibrated_mode()
+
+        pres.show_pages(SCREEN_TEXT["validation"])
+        pres.park_mouse()
+        marker.mark("validation_start")
+        results = calibrate.gaze_validation(pres.win, points)
+        passed, fields, text = calibrate.report_validation(results, labels)
+
+        page = [(title, body.format(result=text))
+                for title, body in SCREEN_TEXT["validationResult"]]
+        key = pres.show_choice(page, ["right", "r"])
+        fields["choice"] = "accept" if key == "right" else "recalibrate"
+        marker.mark("validation_result", **fields)
+        print(f"Researcher chose: {fields['choice']}")
+        if fields["choice"] == "accept":
+            return accuracy, total_attempts, fields
+        to_raw_mode()
+
+
+def recalibrate(pres, positions):
+    """Calibrate and validate again mid-session, with the data file open.
 
     The data file keeps recording. The tracker writes a new header line at
     each change of results type (LeftGazeX for raw, LeftScreenX for screen
@@ -480,17 +561,8 @@ def recalibrate(pres):
     marker.mark("recalibration_start")
     # The marker is written with the next sample, so let one arrive first.
     core.wait(0.01)
-    LiveTrack.StopTracking()
-    LiveTrack.SetResultsTypeRaw()
-    LiveTrack.StartTracking()
-
-    accuracy, attempts = run_calibration(pres)
-
-    LiveTrack.StopTracking()
-    LiveTrack.SetResultsTypeCalibrated()
-    LiveTrack.ClearDataBuffer()
-    LiveTrack.StartTracking()
-    core.wait(0.5)        # past the tracker's clock reset, as at the start
+    to_raw_mode()
+    accuracy, _, _ = calibrate_and_validate(pres, positions)
     marker.mark("recalibration_end")
     return accuracy
 
@@ -532,6 +604,7 @@ def main():
     session = None                    # set once recording starts
     accuracy = {}                     # stays empty if calibration is skipped
     calibration_attempts = 0
+    first_validation = None           # marker fields of the first validation
     participant = {"age": "", "gender": ""}
     pid = "debug"                     # no demographics: no SONA ID, no key file
     try:
@@ -548,7 +621,8 @@ def main():
         pres.park_mouse()
 
         if SESSION["yesCalibration"]:
-            accuracy, calibration_attempts = run_calibration(pres)
+            accuracy, calibration_attempts, first_validation = \
+                calibrate_and_validate(pres, positions)
 
         # From here gaze is in screen pixels centred at 0,0 (the units of
         # the calibration targets). The results type is set while tracking
@@ -580,6 +654,9 @@ def main():
         session = Session(accuracy, positions)
 
         marker.mark("session_start")
+        # The first validation ran before recording; its result goes here.
+        if first_validation is not None:
+            marker.mark("validation_result", **first_validation)
 
         pres.show_pages(SCREEN_TEXT["practice"])
         run_practice(pres, session, practice_set)

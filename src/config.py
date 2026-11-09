@@ -62,7 +62,7 @@ PHASES = {
     "practiceTrials": 1,           # trials per practice round
     "learnBlockTrials": 32,        # trials per learning block: int * n_object 
     "learnCriterion": 0.90,        # % correct trials needed in a block
-    "learnCriterionBlocks": 3,     # consecutive blocks needed to reach criterion
+    "learnCriterionBlocks": 1,     # consecutive blocks needed to reach criterion
     "learnMaxBlocks": 10,          # session ends if criterion is not met
 }
 
@@ -78,7 +78,7 @@ EULER_TOUR = {
 
 TIMING = {
     "previewDurRange_ms": (600, 1000),  # time between name_on to object_on (random in this range)
-    "feedbackDur_ms": 2000,             # feedback screen
+    "feedbackDur_ms": 1500,             # feedback screen
     "iti_ms": 1000,                     # blank screen between trials
     "responseTimeout_ms": 5000,         # time allowed to select a name
 }
@@ -88,7 +88,7 @@ TIMING = {
 
 # Central fixation before each cue
 CENTRAL_FIXATION = {
-    "centralHold_ms": 2000,      # gaze must stay on the dot this long
+    "centralHold_ms": 1500,      # gaze must stay on the dot this long
     "centralRadius_deg": 2,      # distance from centre that counts as on the dot
     "centralTimeout_ms": 20000,  # time allowed to fixate on the dot
 }
@@ -107,6 +107,18 @@ DWELL_SELECTION = {
 # recorded during trials from dot_on to feedback.
 GAZE_STATE = {
     "interval_ms": 10,          # one state per interval of tracker time
+}
+
+# Validation after every calibration (calibrate.gaze_validation): a dot at
+# the centre and at each of the 8 ring slots (this session's rotation).
+# Gaze per dot = median of the samples in the window after the dot appears.
+# Pass: at every dot, both-eye gaze error and the distance between the two
+# eyes are below the limits. The researcher then accepts or recalibrates.
+VALIDATION = {
+    "windowStart_ms": 500,          # window start after the dot appears
+    "windowEnd_ms": 1000,           # window end; the dot disappears here
+    "maxError_deg": 1.0,            # both-eye gaze to dot
+    "maxEyeDistance_deg": 1.0,      # left eye to right eye
 }
 
 # Calibration (refer to CRS LiveTrack calibrate.py)
@@ -346,10 +358,24 @@ SCREEN_TEXT = {
 
     # Calibration result
     # success
-    "calibrationDone": [("", "Calibration was successful.")],
+    # {result}: error and dots acquired per eye (calibrate.calibration_summary)
+    "calibrationDone": [("", "Calibration was successful.\n\n{result}")],
     # failure
     "calibrationFailed": [
-        ("", "Calibration wasn't successful. We'll do it again."),
+        ("", "Calibration wasn't successful. We'll do it again.\n\n{result}"),
+    ],
+
+    # Before the validation dots
+    "validation": [
+        ("Calibration check",
+         "Dots will appear again, one at a time. Look directly at each dot "
+         "until it disappears."),
+    ],
+    # Validation result. {result}: calibrate.report_validation.
+    # The researcher presses \u2192 (accept) or R (calibrate again).
+    "validationResult": [
+        ("Calibration check",
+         "{result}\n\n[\u2192] continue        [R] calibrate again"),
     ],
 
     # Practice screen

@@ -175,6 +175,19 @@ def set_trials_running(running):
     _trials_running = running
 
 
+# Between learning blocks (round-end screen) the pause screen also offers
+# Recalibrate. experiment.py sets this to a function that recalibrates while
+# that screen is shown, and back to None after. It lives in experiment.py
+# because experiment.py imports this file (an import back would be circular).
+_between_blocks_recalibrate = None
+
+
+def set_between_blocks_recalibration(func):
+    """func: called when Recalibrate is chosen outside trials; None = no option."""
+    global _between_blocks_recalibrate
+    _between_blocks_recalibrate = func
+
+
 def check_escape():
     """Open the pause screen if Esc was pressed. Call once per frame.
 
@@ -189,7 +202,9 @@ def pause_menu():
     """Pause screen; the researcher clicks an option.
 
     Continue: return (outside trials) or raise RestartBlock (in trials).
-    Recalibrate (trials only): raise RestartBlock(recalibrate=True).
+    Recalibrate, in trials: raise RestartBlock(recalibrate=True).
+    Recalibrate, between learning blocks: run the recalibration, then
+    return to the screen (see set_between_blocks_recalibration).
     Skip to next section (trials only): raise SkipSection.
     End session: confirm, then raise EndSession.
     """
@@ -202,6 +217,8 @@ def pause_menu():
     print("\nPAUSED. Click an option on the stimulus screen.")
     if _trials_running:
         options = ["continue", "recalibrate", "skip", "end"]
+    elif _between_blocks_recalibrate is not None:
+        options = ["continue", "recalibrate", "end"]
     else:
         options = ["continue", "end"]
 
@@ -224,6 +241,14 @@ def pause_menu():
     marker.mark("pause_off")
     event.clearEvents()                 # drop keys pressed during the pause
     if not _trials_running:
+        if chosen == "recalibrate":
+            run_recalibration = _between_blocks_recalibrate
+            # No Recalibrate option on the recalibration's own screens
+            set_between_blocks_recalibration(None)
+            try:
+                run_recalibration()
+            finally:
+                set_between_blocks_recalibration(run_recalibration)
         return
     if chosen == "skip":
         raise SkipSection("researcher chose Skip to next section")

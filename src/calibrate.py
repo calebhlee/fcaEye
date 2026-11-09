@@ -181,13 +181,16 @@ def gaze_calibration(win):
 def report_calibration(result, attempt=1):
     """Print the accuracy for the experimenter; return True if it passes.
 
-    Passes only if both eyes were calibrated and each error is below
+    Passes only if both eyes were calibrated, each eye has all targets
+    (a missed target fails the calibration), and each error is below
     CALIBRATION["calibrationCriterion_deg"] (screening criterion).
-    The participant sees only pass or fail (experiment.run_calibration).
+    The screen shows calibration_summary (experiment.run_calibration).
     """
     threshold = CALIBRATION["calibrationCriterion_deg"]
+    n_targets = len(CALIBRATION["targets_deg"])
     print(f"\n--- Calibration attempt {attempt} "
-          f"(criterion: both eyes < {threshold} deg) ---")
+          f"(criterion: both eyes < {threshold} deg, "
+          f"all {n_targets} targets) ---")
 
     missing = [eye for eye in ("left", "right") if eye not in result]
     for eye in missing:
@@ -195,11 +198,29 @@ def report_calibration(result, attempt=1):
 
     passed = not missing
     for eye, entry in result.items():
-        ok = entry["accuracy_deg"] < threshold
+        ok = (entry["accuracy_deg"] < threshold
+              and entry["n_points"] == n_targets)
         passed = passed and ok
         line = (f"{eye}: {entry['accuracy_deg']:.2f} deg "
-                f"from {entry['n_points']} targets  "
+                f"from {entry['n_points']} of {n_targets} targets  "
                 f"[{'PASS' if ok else 'FAIL'}]")
         print(line)
 
     return passed
+
+
+def calibration_summary(result):
+    """Calibration result per eye as screen text, e.g.
+    "Left eye: 0.16 deg, 9 of 9 dots acquired".
+    """
+    n_targets = len(CALIBRATION["targets_deg"])
+    lines = []
+    for eye in ("left", "right"):
+        entry = result.get(eye)
+        if entry is None:
+            lines.append(f"{eye.capitalize()} eye: not calibrated")
+        else:
+            lines.append(f"{eye.capitalize()} eye: "
+                         f"{entry['accuracy_deg']:.2f} deg, "
+                         f"{entry['n_points']} of {n_targets} dots acquired")
+    return "\n".join(lines)

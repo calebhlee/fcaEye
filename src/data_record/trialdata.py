@@ -25,7 +25,7 @@ from config import OBJECT_SETS
 SESSION_SETTINGS = ["DISPLAY", "GEOMETRY", "TIMING", "ORDER", "EULER_TOUR", "PHASES",
                     "COUNTERBALANCE", "DEMO_TRIALS",
                     "DWELL_SELECTION", "CENTRAL_FIXATION", "GAZE_STATE",
-                    "CALIBRATION"]
+                    "CALIBRATION", "VALIDATION"]
 
 # marker name on the gaze file": "the PsychoPy time (ms) the marker was written."
 MARKER_TIMES = {

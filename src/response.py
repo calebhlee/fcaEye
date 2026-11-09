@@ -10,6 +10,8 @@ Gaze point: the midpoint of the two eyes; one eye if only that eye is
 tracked. (The tracker's GazeX/GazeY are the left eye; the right eye is
 GazeXRight/GazeYRight.)
 """
+import contextlib
+import io
 import sys
 sys.path.insert(0, r"C:\Users\Public\Documents\CRS LiveTrack Python Bindings")
 import LiveTrack
@@ -42,8 +44,13 @@ def read_samples():
 
     Every read goes through here, so the live state recorder sees every
     sample, including ones the selection ignores.
+
+    The binding prints "No samples in buffer" when nothing has arrived
+    since the last read (normal right after a read). That print is
+    silenced, as in marker.mark.
     """
-    samples = LiveTrack.GetBufferedEyePositions(1, -1, 1)
+    with contextlib.redirect_stdout(io.StringIO()):
+        samples = LiveTrack.GetBufferedEyePositions(1, -1, 1)
     STATES.feed(samples)
     return samples
 
