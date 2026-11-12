@@ -571,15 +571,15 @@ def main():
     geometry.check_feedback_fit()
     design.check_design()
 
-    # Counterbalance version from the participants already in the key file.
+    # Counterbalancing from the participants already in the key file.
     # Decided before calibration: validation uses the same ring positions.
-    version = design.version_from_count(count_participants())
-    ring_order, rotation = design.counterbalance(version)
+    object_set, ring_version, ring_order, rotation = \
+        design.counterbalance(count_participants())
     positions = geometry.ring_positions(rotation)
-    print(f"Counterbalance version {version} of {design.n_versions()}: "
-          f"ring order {' '.join(ring_order)}, rotation {rotation} deg")
+    print(f"Object set {object_set}; ring version {ring_version}: "
+          f"{' '.join(ring_order)}; rotation {rotation} deg")
 
-    sets = design.stimulus_sets(ring_order)
+    sets = design.stimulus_sets(ring_order, object_set)
     practice_set = sets["practice"]
     task_set = sets["task"]
     used_sets = [practice_set, task_set]
@@ -642,7 +642,8 @@ def main():
         columns = trialdata.session_columns(
             participant, accuracy,
             screen_rate, tracker_rate, tracked_eyes, used_sets,
-            calibration_attempts, version, rotation, positions)
+            calibration_attempts, object_set, ring_version, rotation,
+            positions)
         # Needed later to judge where gaze was
         columns["nameSelectRadius_px"] = round(pres.name_radius_px, 2)
         columns["px_per_deg"] = round(geometry.px_per_deg(), 4)

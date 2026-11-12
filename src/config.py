@@ -35,25 +35,30 @@ DEMO_TRIALS = {
 }
 
 # 2. COUNTERBALANCING ======================================================
-# Each participant gets a version, counted automatically from the participant
-# key file (design.counterbalance). A version is one ring order and one ring
-# rotation. Every 7 participants get each order once and each rotation once;
-# after 49 participants every order has been paired with every rotation once.
+# Each participant gets an object set and a ring order, from the number of
+# participants already in the participant key file (design.counterbalance):
+#   objectSet  = n mod 2 + 1   (ATTRIBUTE_SETS: which feature stands for
+#                               which attribute)
+#   ringVersion = n mod 7 + 1  (ringOrders)
+# 2 and 7 share no factor, so every 14 participants get every object set
+# with every ring order once.
 COUNTERBALANCE = {
     # Names on the ring, slot 1 to 8 (counter-clockwise). Across the 7 orders
-    # every pair of objects sits side by side exactly twice.
+    # every pair of objects sits side by side exactly twice, and every object
+    # sits in a different slot in each order.
     "ringOrders": [
-        ["g0", "g5", "g6", "g3", "g7", "g2", "g1", "g4"],
-        ["g0", "g4", "g2", "g1", "g5", "g7", "g6", "g3"],
-        ["g0", "g7", "g4", "g1", "g5", "g6", "g2", "g3"],
-        ["g0", "g2", "g4", "g7", "g5", "g3", "g1", "g6"],
-        ["g0", "g6", "g7", "g1", "g3", "g4", "g5", "g2"],
-        ["g0", "g1", "g6", "g4", "g5", "g2", "g3", "g7"],
-        ["g0", "g1", "g7", "g2", "g6", "g4", "g3", "g5"],
+        ["g3", "g7", "g4", "g5", "g0", "g1", "g2", "g6"],
+        ["g4", "g1", "g6", "g2", "g3", "g0", "g5", "g7"],
+        ["g2", "g5", "g1", "g6", "g4", "g3", "g7", "g0"],
+        ["g7", "g6", "g3", "g0", "g1", "g5", "g4", "g2"],
+        ["g5", "g2", "g0", "g4", "g6", "g7", "g1", "g3"],
+        ["g6", "g0", "g7", "g1", "g2", "g4", "g3", "g5"],
+        ["g1", "g3", "g2", "g7", "g5", "g6", "g0", "g4"],
     ],
-    # Angle of slot 1 (deg), counter-clockwise from 3 o'clock: 360/7 steps,
-    # so slot 1 lands in 7 different directions around the circle.
-    "rotations_deg": [0.0, 51.43, 102.86, 154.29, 205.71, 257.14, 308.57],
+    # Angle of slot 1 (deg), counter-clockwise from 3 o'clock; the same for
+    # everyone. 22.5 = half a slot, so no name sits exactly at 3, 6, 9 or
+    # 12 o'clock.
+    "rotation_deg": 22.5,
 }
 
 
@@ -82,7 +87,7 @@ TIMING = {
     "previewDurRange_ms": (600, 1000),  # time between name_on to object_on (random in this range)
     "feedbackDur_ms": 1500,             # feedback screen
     "iti_ms": 1000,                     # blank screen between trials
-    "responseTimeout_ms": 5000,         # time allowed to select a name
+    "responseTimeout_ms": 10000,         # time allowed to select a name 
 }
 
 
@@ -196,21 +201,36 @@ CONTEXT = {
     "g7": [0, 1, 1, 0, 1, 0],
 }
 
-# Visual feature for each attribute, and what 1 and 0 mean (stimuli.py).
-ATTRIBUTES = {
-    "m0": {"feature": "colour", 1: "orange", 0: "gray"},
-    "m1": {"feature": "stripes", 1: "stripes", 0: "none"},
-    "m2": {"feature": "outline", 1: "thick", 0: "none"},
-    "m3": {"feature": "hole", 1: "hole", 0: "none"},
-    "m4": {"feature": "slot", 1: "slot", 0: "none"},
-    "m5": {"feature": "circle", 1: "circle", 0: "square"},
+# Visual feature for each attribute, and what 1 and 0 mean (stimuli.py),
+# per object set (counterbalanced). The context is the same in both sets;
+# only which feature stands for which attribute differs. In set 1 the
+# 3-member categories (m2+m4, m3+m5) are outline+slot and hole+circle; in
+# set 2 they are colour+hole and outline+stripes, which are 2-member pairs
+# in set 1 (and set 1's are 2-member pairs in set 2).
+ATTRIBUTE_SETS = {
+    1: {
+        "m0": {"feature": "colour", 1: "orange", 0: "gray"},
+        "m1": {"feature": "stripes", 1: "stripes", 0: "none"},
+        "m2": {"feature": "outline", 1: "thick", 0: "none"},
+        "m3": {"feature": "hole", 1: "hole", 0: "none"},
+        "m4": {"feature": "slot", 1: "slot", 0: "none"},
+        "m5": {"feature": "circle", 1: "circle", 0: "square"},
+    },
+    2: {
+        "m0": {"feature": "slot", 1: "slot", 0: "none"},
+        "m1": {"feature": "circle", 1: "circle", 0: "square"},
+        "m2": {"feature": "hole", 1: "hole", 0: "none"},
+        "m3": {"feature": "outline", 1: "thick", 0: "none"},
+        "m4": {"feature": "colour", 1: "orange", 0: "gray"},
+        "m5": {"feature": "stripes", 1: "stripes", 0: "none"},
+    },
 }
 
 # Feature order of the digits in image file names; 1 = present.
 # E.g. 100001.png = orange circle.
 IMAGE_NAME_ORDER = ["colour", "stripes", "outline", "hole", "slot", "circle"]
 
-# Object names
+# Object names (the same in both object sets)
 NAMES = {
     "g0": "Guli",
     "g1": "Domu",

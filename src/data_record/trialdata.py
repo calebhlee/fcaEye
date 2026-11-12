@@ -19,7 +19,7 @@ from importlib.metadata import version
 
 import config
 import design
-from config import ATTRIBUTES
+from config import ATTRIBUTE_SETS
 
 # Settings written to the session file as columns.
 SESSION_SETTINGS = ["DISPLAY", "GEOMETRY", "TIMING", "EULER_TOUR", "PHASES",
@@ -54,7 +54,7 @@ _participant_id = None
 
 def session_columns(participant, accuracy, screen_rate,
                     tracker_rate, tracked_eyes, stim_sets,
-                    calibration_attempts, counterbalance_version, rotation,
+                    calibration_attempts, object_set, ring_version, rotation,
                     positions):
     """Session-wide values and the config settings.
 
@@ -66,7 +66,8 @@ def session_columns(participant, accuracy, screen_rate,
     """
     columns = dict(participant)
     columns.update({
-        "counterbalanceVersion": counterbalance_version,
+        "objectSet": object_set,
+        "ringVersion": ring_version,
     })
     columns.update({
         # This is for version differences later
@@ -87,7 +88,8 @@ def session_columns(participant, accuracy, screen_rate,
         is_practice = stim_set.context is None
         p = "practice_" if is_practice else ""        # column prefix
         if not is_practice:
-            columns["attributes"] = design.attributes_text(ATTRIBUTES)
+            columns["attributes"] = design.attributes_text(
+                ATTRIBUTE_SETS[object_set])
         for obj in stim_set.objects:
             columns[f"{p}{obj}Name"] = stim_set.names[obj]
         if not is_practice:
