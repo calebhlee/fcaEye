@@ -12,7 +12,8 @@ from psychopy.visual.textbox2 import textbox2 as _tb2
 
 from data_record import marker
 import geometry
-from config import (DISPLAY, GEOMETRY, NAV_TEXT, PAGE_STYLE, PATHS,
+from config import (CONSENT_BUTTONS, DISPLAY, GEOMETRY, LETTER_STYLE, NAV_TEXT,
+                    PAGE_STYLE, PATHS,
                     PAUSE_BUTTONS, PRACTICE_NAMES, PRACTICE_OBJECTS,
                     PRACTICE_SIZES, SCREEN_TEXT)
 
@@ -1025,17 +1026,19 @@ class Presentation:
                 label.draw()
         return draw
 
-    # --- end of session ---
-    # The debrief letter uses the page layout: semibold title and headings,
-    # body text in the text column, the Back/Next footer, and "Page X of Y".
+    # --- letters: consent form and debrief letter ---
+    # Both use the page layout: semibold title and headings, body text in
+    # the text column, pictures, the Back/Next footer, and "Page X of Y".
 
-    def _letter_paragraphs(self):
-        """Read the letter file; return [(kind, text), ...].
+    def _letter_paragraphs(self, path):
+        """Read a letter file; return [(kind, text), ...].
 
         Paragraphs are split by empty lines. "# " marks the title, "## " a
-        heading. A block of "#" note lines before the title is skipped.
+        heading, "![caption](file)" a picture (file next to the letter); its
+        caption becomes a "caption" paragraph. A block of "#" note lines
+        before the title is skipped.
         """
-        text = PATHS["debriefLetter"].read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8")
         paragraphs = []
         for block in text.strip().split("\n\n"):
             block = block.strip()
@@ -1046,18 +1049,38 @@ class Presentation:
                         and "\n" in block:
                     continue
                 paragraphs.append(("title", block[2:]))
+            elif block.startswith("![") and "](" in block and block.endswith(")"):
+                caption, file_name = block[2:-1].split("](", 1)
+                paragraphs.append(("image", str(path.parent / file_name)))
+                if caption:
+                    paragraphs.append(("caption", caption))
             elif block:
                 paragraphs.append(("body", block))
         return paragraphs
 
-    def _letter_stim(self, kind, text):
-        """One letter paragraph as a TextStim, anchored at its top-left corner."""
+    def _letter_stim(self, kind, text, style):
+        """One letter paragraph as a stimulus, anchored at its top-left corner
+        (pictures: centred in the column). .box_h is its height in px
+        (not .height: TextStim uses that for the letter height).
+        style: a LETTER_STYLE entry (sizes, column width)."""
         st = PAGE_STYLE
-        left, right, _, _ = self._col
+        left, right = -style["columnWidth"] / 2, style["columnWidth"] / 2
+        if kind == "image":
+            from PIL import Image
+            with Image.open(text) as im:
+                w_px, h_px = im.size
+            width = (right - left) * style["imageScale"]
+            height = width * h_px / w_px
+            stim = visual.ImageStim(self.win, image=text, size=(width, height),
+                                    units="pix")
+            stim.box_h = height
+            stim.gap = 0.5 * style["bodyHeight"]
+            return stim
         size, bold, colour = {          # kind: (letter height, semibold, colour)
-            "title": (st["titleHeight"], True, INK),
-            "heading": (st["letterHeadingHeight"], True, INK),
-            "body": (st["letterBodyHeight"], False, _rgb(st["body"])),
+            "title": (style["titleHeight"], True, INK),
+            "heading": (style["headingHeight"], True, INK),
+            "body": (style["bodyHeight"], False, _rgb(st["body"])),
+            "caption": (style["captionHeight"], False, DIM_TEXT),
         }[kind]
         # Semibold through its file, not bold=True (see _label)
         stim = visual.TextStim(self.win, text=text, height=size, color=colour,
@@ -1065,54 +1088,98 @@ class Presentation:
                                fontFiles=FONT_BODY_BOLD if bold else FONT_BODY,
                                anchorHoriz="left", anchorVert="top",
                                alignText="left", pos=(left, 0))
+        stim.box_h = stim.boundingBox[1]
         stim.gap = 0.9 * size           # space after the paragraph
         return stim
 
-    def _debrief_pages(self):
-        """Lay the letter out in the text column; return a list of TextStim lists.
+    def _letter_pages(self, path, style):
+        """Lay a letter out in its text column; return a list of stimulus lists.
 
-        A paragraph that does not fit starts a new page; a heading moves
-        with the paragraph after it.
+        style: a LETTER_STYLE entry. A paragraph that does not fit starts a
+        new page; a heading or a picture moves with the paragraph after it
+        (a picture's caption).
         """
-        left, _, top, _ = self._col
+        _, _, top, _ = self._col
+        left, right = -style["columnWidth"] / 2, style["columnWidth"] / 2
         first_y = top - 84              # where page titles start
         last_y = self._footer_top + 10
-        stims = [self._letter_stim(kind, text)
-                 for kind, text in self._letter_paragraphs()]
-        kinds = [kind for kind, _ in self._letter_paragraphs()]
+        paragraphs = self._letter_paragraphs(path)
+        stims = [self._letter_stim(kind, text, style)
+                 for kind, text in paragraphs]
+        kinds = [kind for kind, _ in paragraphs]
         pages, y = [[]], first_y
         for i, stim in enumerate(stims):
-            needed = stim.boundingBox[1]
-            if kinds[i] == "heading" and i + 1 < len(stims):
-                needed += stim.gap + stims[i + 1].boundingBox[1]
+            needed = stim.box_h
+            if kinds[i] in ("heading", "image") and i + 1 < len(stims):
+                needed += stim.gap + stims[i + 1].box_h
             if y - needed < last_y and pages[-1]:
                 pages.append([])
                 y = first_y
-            stim.pos = (left, y)
+            if kinds[i] == "image":
+                stim.pos = ((left + right) / 2, y - stim.box_h / 2)
+            else:
+                stim.pos = (left, y)
             pages[-1].append(stim)
-            y -= stim.boundingBox[1] + stim.gap
+            y -= stim.box_h + stim.gap
         return pages
+
+    def _letter_page_drawer(self, pages):
+        """draw(page_n) for letter pages (0-based), with footer and page number."""
+        page_number = self._label("", self._footer_y, 16, DIM_TEXT)
+
+        def draw(page_n):
+            for stim in pages[page_n]:
+                stim.draw()
+            self._page_back.draw()
+            last = page_n == len(pages) - 1
+            self._page_next.text = NAV_TEXT["last"] if last else NAV_TEXT["next"]
+            self._page_next.draw()
+            page_number.text = f"Page {page_n + 1} of {len(pages)}"
+            page_number.draw()
+        return draw
+
+    @_on_paper
+    def show_consent(self):
+        """Consent form pages (arrows move between them), then the agree /
+        do not agree buttons, clicked with the mouse.
+
+        Returns True if the participant clicked agree. Esc opens the pause
+        screen (Continue or End).
+        """
+        pages = self._letter_pages(PATHS["consentForm"], LETTER_STYLE["consent"])
+        draw = self._letter_page_drawer(pages)
+        page_n = 0
+        event.clearEvents()
+        while True:
+            draw(page_n)
+            self.flip()
+            key = event.waitKeys(keyList=["right", "left", "escape"])[0]
+            if key == "escape":
+                pause_menu()
+            elif key == "left":
+                page_n = max(0, page_n - 1)
+            elif page_n == len(pages) - 1:
+                break
+            else:
+                page_n += 1
+        choice = self.choose_button(
+            SCREEN_TEXT["consent"][0],
+            [CONSENT_BUTTONS["agree"], CONSENT_BUTTONS["decline"]])
+        return choice == 0
 
     def _debrief_screen(self):
         """Build the end screens; return (draw(screen_n), n_screens).
 
         Screen 0 is the thank-you page; screens 1.. are letter pages.
         """
-        pages = self._debrief_pages()
-        page_number = self._label("", self._footer_y, 16, DIM_TEXT)
+        pages = self._letter_pages(PATHS["debriefLetter"], LETTER_STYLE["debrief"])
+        draw_letter = self._letter_page_drawer(pages)
 
         def draw(screen_n):
             if screen_n == 0:
                 self.draw_page(SCREEN_TEXT["thankYou"], 0)
-                return
-            for stim in pages[screen_n - 1]:
-                stim.draw()
-            self._page_back.draw()
-            last = screen_n == len(pages)
-            self._page_next.text = NAV_TEXT["last"] if last else NAV_TEXT["next"]
-            self._page_next.draw()
-            page_number.text = f"Page {screen_n} of {len(pages)}"
-            page_number.draw()
+            else:
+                draw_letter(screen_n - 1)
         return draw, len(pages) + 1
 
     @_on_paper

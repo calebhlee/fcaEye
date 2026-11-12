@@ -23,6 +23,7 @@ from pathlib import Path
 # 1. SESSION ===============================================================
 
 SESSION = {
+    "yesConsent": True,          # False: skip the consent form (testing only)
     "yesDemographics": True,     # False: skip the demographic questions
     "yesCalibration": True,      # False: skip calibration
 }
@@ -183,6 +184,7 @@ PATHS = {
     "fontDir": PROJECT_DIR / "src" / "fonts",          # page fonts
     "keyFile": PROJECT_DIR.parent / "participant_key" / "participant_key.csv",  # SONA ID -> PID
     "debriefLetter": PROJECT_DIR / "src" / "debrief_letter.txt",   # debrief letter txt
+    "consentForm": PROJECT_DIR / "src" / "consent_form.txt",       # consent form txt
 
 }
 
@@ -287,8 +289,7 @@ SCREEN_TEXT = {
          "\u2192 for next, \u2190 for back."),
         ("Welcome",
          "If you want to stop at any time, press Esc or let the "
-         "researcher know.\n\n"
-         "We will ask you a few demographic questions first."),
+         "researcher know.\n\n"),
     ],
 
     # Demographic questions: (question, hint under the box)
@@ -424,6 +425,10 @@ SCREEN_TEXT = {
     # Last screen, after the debrief letter. Only Esc (the researcher) closes it.
     "callResearcher": [("", "Please call the researcher.")],
 
+    # After the consent form pages: the page with the two buttons
+    # (CONSENT_BUTTONS), clicked with the mouse.
+    "consent": [("Consent", "Please click one of the options below.")],
+
     # Shown before an abandoned round starts again
     "blockRestart": [
         ("", "The round will start again from the beginning."),
@@ -450,6 +455,12 @@ NAV_TEXT = {"back": "\u2190  Back", "next": "Next  \u2192",
             "last": "Continue  \u2192"}
 
 # Pause screen buttons (for the researcher)
+# Consent choice buttons (the two statements of the approved consent form)
+CONSENT_BUTTONS = {
+    "agree": "I agree to participate in this study",
+    "decline": "I do not agree to participate in this study",
+}
+
 PAUSE_BUTTONS = {
     "continue": "Continue",
     "recalibrate": "Recalibrate",
@@ -493,10 +504,6 @@ PAGE_STYLE = {
     "columnWidth": 640,             # text width; about 60 characters a line
     "titleHeight": 34,              # title letter height
     "bodyHeight": 23,               # body letter height
-    "letterHeadingHeight": 23,      # debrief letter: heading letter height
-    "letterBodyHeight": 19,         # debrief letter: body letter height
-                                    # (smaller, so the long letter needs
-                                    # fewer pages)
     "lineSpacing": 1.12,            # TextBox2 units: 1 = the font's own spacing
     "paper": "#FFFFFF",             # background of text screens
     "ink": "#000000",               # titles, "Next"
@@ -512,4 +519,26 @@ PAGE_STYLE = {
     "pictureScale": 0.28,           # trial picture size / real screen size
     "pictureNameHeight": 13,        # name height in pictures (above scale,
                                     # so it stays readable)
+}
+
+# Letters (consent form, debrief letter): letter heights (px), text column
+# width (px) and picture width (fraction of that column). Separate from the
+# other text screens. 1 deg = about 38 px at this viewing distance.
+LETTER_STYLE = {
+    "consent": {
+        "titleHeight": 24,
+        "headingHeight": 18,
+        "bodyHeight": 15,
+        "captionHeight": 13,
+        "columnWidth": 800,
+        "imageScale": 0.5,
+    },
+    "debrief": {
+        "titleHeight": 34,
+        "headingHeight": 23,
+        "bodyHeight": 19,
+        "captionHeight": 16,
+        "columnWidth": 640,
+        "imageScale": 0.8,
+    },
 }
