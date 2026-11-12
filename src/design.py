@@ -4,14 +4,14 @@
 """Counterbalancing, stimulus sets, trial orders, and design checks.
 
 An object's image file name is its CONTEXT row, mapped to features by
-ATTRIBUTE_SETS[object set] and written in IMAGE_NAME_ORDER (see stimuli.py).
+FEATURE_MAPPINGS[feature mapping] and written in IMAGE_NAME_ORDER (see stimuli.py).
 """
 
 import random
 import sys
 from dataclasses import dataclass
 
-from config import (ATTRIBUTE_SETS, COUNTERBALANCE, DEMO_TRIALS, EULER_TOUR,
+from config import (FEATURE_MAPPINGS, COUNTERBALANCE, DEMO_TRIALS, EULER_TOUR,
                     GEOMETRY, IMAGE_NAME_ORDER, NAMES, PATHS, PHASES,
                     PRACTICE_NAMES, PRACTICE_OBJECTS, PROJECT_DIR)
 from config import CONTEXT
@@ -21,32 +21,31 @@ sys.path.insert(0, str(PROJECT_DIR))
 from eulerTours import euler
 
 
-def object_image(obj, object_set):
-    """Image file name for one object in an object set, e.g. "111000.png".
+def object_image(obj, feature_mapping):
+    """Image file name for one object in a feature mapping, e.g. "111000.png".
 
-    The same CONTEXT row gives a different file in each object set.
+    The same CONTEXT row gives a different file in each feature mapping.
     """
-    attributes = ATTRIBUTE_SETS[object_set]
+    attributes = FEATURE_MAPPINGS[feature_mapping]
     ft = {}
     for attr, value in zip(attributes, CONTEXT[obj]):
         ft[attributes[attr]["feature"]] = value
     return "".join(str(ft[feature]) for feature in IMAGE_NAME_ORDER) + ".png"
 
 
-def counterbalance(n_participants):
-    """(object set, ring version, ring order, rotation) for the next
-    participant, given how many are already in the key file.
-
-    objectSet = n mod (number of sets) + 1; ringVersion = n mod (number of
-    ring orders) + 1. With 2 sets and 7 orders, every 14 participants get
-    each set with each order once.
+def counterbalance(feature_mapping, ring_version):
+    """(ring order, rotation in deg) for the condition the researcher
+    entered (experiment.ask_condition). Raises ValueError if out of range.
     """
-    n = n_participants
-    object_set = n % len(ATTRIBUTE_SETS) + 1
-    ring_version = n % len(COUNTERBALANCE["ringOrders"]) + 1
+    n_sets = len(FEATURE_MAPPINGS)
+    n_rings = len(COUNTERBALANCE["ringOrders"])
+    if feature_mapping not in FEATURE_MAPPINGS:
+        raise ValueError(f"feature mapping must be 1-{n_sets}; it is {feature_mapping!r}")
+    if not 1 <= ring_version <= n_rings:
+        raise ValueError(f"ring version must be 1-{n_rings}; it is "
+                         f"{ring_version!r}")
     ring_order = list(COUNTERBALANCE["ringOrders"][ring_version - 1])
-    return (object_set, ring_version, ring_order,
-            float(COUNTERBALANCE["rotation_deg"]))
+    return ring_order, float(COUNTERBALANCE["rotation_deg"])
 
 
 @dataclass
@@ -66,7 +65,7 @@ class StimulusSet:
     images: dict | None
     ring_order: list
     stim_dir: object = None
-    object_set: int | None = None
+    feature_mapping: int | None = None
 
     @property
     def objects(self):
@@ -75,16 +74,16 @@ class StimulusSet:
     def image_code(self, obj):
         """Image file shown for obj, without ".png", e.g. "000111" (feature
         digits in IMAGE_NAME_ORDER), or "" for the practice. Differs between
-        object sets for the same object; its CONTEXT row does not."""
+        feature mappings for the same object; its CONTEXT row does not."""
         if self.images is None:
             return ""
         return self.images[obj].removesuffix(".png")
 
 
-def stimulus_sets(ring_order, object_set):
+def stimulus_sets(ring_order, feature_mapping):
     """{label: StimulusSet} for the practice and the task.
 
-    ring_order, object_set: this session's (counterbalance); the practice
+    ring_order, feature_mapping: this session's (counterbalance); the practice
     keeps its own fixed order.
     """
     return {
@@ -94,10 +93,10 @@ def stimulus_sets(ring_order, object_set):
             label="task",
             names=NAMES,
             context=CONTEXT,
-            images={obj: object_image(obj, object_set) for obj in CONTEXT},
+            images={obj: object_image(obj, feature_mapping) for obj in CONTEXT},
             ring_order=list(ring_order),
             stim_dir=PATHS["stimDir"],
-            object_set=object_set,
+            feature_mapping=feature_mapping,
         ),
     }
 
@@ -157,14 +156,14 @@ def check_design():
     """Raise an error before anything opens if the config values do not fit."""
     n_attributes = len(CONTEXT["g0"])
     expected = [f"m{j}" for j in range(n_attributes)]
-    for set_n, attributes in ATTRIBUTE_SETS.items():
+    for set_n, attributes in FEATURE_MAPPINGS.items():
         if list(attributes) != expected:
-            raise ValueError(f"ATTRIBUTE_SETS[{set_n}] keys must be {expected} "
+            raise ValueError(f"FEATURE_MAPPINGS[{set_n}] keys must be {expected} "
                              "in this order, to match the columns of CONTEXT; "
                              f"they are {list(attributes)}")
         features = [spec["feature"] for spec in attributes.values()]
         if sorted(features) != sorted(IMAGE_NAME_ORDER):
-            raise ValueError(f"ATTRIBUTE_SETS[{set_n}] must use each of "
+            raise ValueError(f"FEATURE_MAPPINGS[{set_n}] must use each of "
                              f"{IMAGE_NAME_ORDER} exactly once; it uses "
                              f"{features}")
 
@@ -231,7 +230,7 @@ def check_design():
             raise ValueError(f"{label} must use the same object labels "
                              "as CONTEXT")
 
-    for set_n in ATTRIBUTE_SETS:
+    for set_n in FEATURE_MAPPINGS:
         images = {obj: object_image(obj, set_n) for obj in CONTEXT}
 
         # Equal rows give equal images. A formal context allows this, so only
@@ -239,12 +238,12 @@ def check_design():
         seen = {}
         for obj, image in images.items():
             if image in seen:
-                print(f"WARNING: object set {set_n}: {seen[image]} and {obj} "
+                print(f"WARNING: feature mapping {set_n}: {seen[image]} and {obj} "
                       f"have the same row in CONTEXT, so both show {image}")
             seen.setdefault(image, obj)
 
         missing = [image for image in images.values()
                    if not (PATHS["stimDir"] / image).exists()]
         if missing:
-            raise FileNotFoundError(f"object set {set_n}: not in "
+            raise FileNotFoundError(f"feature mapping {set_n}: not in "
                                     f"{PATHS['stimDir']}: {missing}")

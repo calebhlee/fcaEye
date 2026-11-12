@@ -15,13 +15,17 @@ from config import PATHS
 
 COLUMNS = ["sonaID", "participantID", "session"]
 
-def count_participants():
-    """Participants already in the key file (data rows, header not counted)."""
-    path = PATHS["keyFile"]
-    if not path.exists():
-        return 0
-    with open(path, newline="", encoding="utf-8") as f:
-        return max(sum(1 for _ in csv.reader(f)) - 1, 0)
+def log_condition(pid, feature_mapping, ring_version):
+    """Add one row to the condition log: participant ID, feature mapping,
+    ring version (data/condition_log.csv; no SONA ID)."""
+    path = PATHS["conditionLog"]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    is_new = not path.exists()
+    with open(path, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        if is_new:
+            writer.writerow(["participantID", "featureMapping", "ringVersion"])
+        writer.writerow([pid, feature_mapping, ring_version])
 
 
 def assign_pid(sona_id):

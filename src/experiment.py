@@ -3,7 +3,7 @@
 
 """Session and trial flow.
 
-Session: greeting, demographics -> instructions -> calibration ->
+Session: greeting, consent form, demographics -> instructions -> calibration ->
 recording starts -> practice rounds -> learning (until criterion) ->
 test -> post-task questions -> thank you, debrief letter.
 Esc opens the pause screen (presentation.pause_menu).
@@ -21,15 +21,46 @@ import design
 import geometry
 import response
 from data_record import marker, trialdata
-from data_record.pid import assign_pid, count_participants
-from config import (CENTRAL_FIXATION, DEMO_TRIALS, DISPLAY,
-                    GENDER_OPTIONS,
+from data_record.pid import assign_pid, log_condition
+from config import (FEATURE_MAPPINGS, CENTRAL_FIXATION, COUNTERBALANCE,
+                    DEMO_TRIALS, DISPLAY, GENDER_OPTIONS,
                     IMAGE_NAME_ORDER, PATHS, PHASES, POSTTASK, SCREEN_TEXT,
                     SESSION, TIMING)
 from presentation import (EndSession, Presentation, RestartBlock,
                           SkipSection, check_escape,
                           set_between_blocks_recalibration,
                           set_trials_running)
+
+
+def ask_number(prompt, low, high):
+    """Ask in the terminal until a whole number from low to high is typed."""
+    while True:
+        answer = input(f"{prompt} ({low}-{high}): ").strip()
+        if answer.isdigit() and low <= int(answer) <= high:
+            return int(answer)
+        print(f"  Please type a whole number from {low} to {high}.")
+
+
+def ask_condition():
+    """Researcher types the feature mapping and ring version in the terminal,
+    before the window opens; no default, confirmed with y.
+
+    Returns (feature mapping, ring version).
+    """
+    n_sets = len(FEATURE_MAPPINGS)
+    n_rings = len(COUNTERBALANCE["ringOrders"])
+    print("\n--- Counterbalancing condition (keep your own log) ---")
+    while True:
+        feature_mapping = ask_number("Feature mapping", 1, n_sets)
+        ring_version = ask_number("Ring version", 1, n_rings)
+        answer = input(f"Feature mapping {feature_mapping}, ring version "
+                       f"{ring_version}. Correct? (y/n): ").strip().lower()
+        if answer == "y":
+            return feature_mapping, ring_version
+
+
+class ConsentDeclined(Exception):
+    """The participant clicked "I do not agree". Nothing has been recorded."""
 
 
 def ask_demographics(pres):
@@ -571,15 +602,16 @@ def main():
     geometry.check_feedback_fit()
     design.check_design()
 
-    # Counterbalancing from the participants already in the key file.
-    # Decided before calibration: validation uses the same ring positions.
-    object_set, ring_version, ring_order, rotation = \
-        design.counterbalance(count_participants())
+    # Counterbalancing condition, typed by the researcher before the window
+    # opens. Decided before calibration: validation uses the same ring
+    # positions.
+    feature_mapping, ring_version = ask_condition()
+    ring_order, rotation = design.counterbalance(feature_mapping, ring_version)
     positions = geometry.ring_positions(rotation)
-    print(f"Object set {object_set}; ring version {ring_version}: "
+    print(f"Feature mapping {feature_mapping}; ring version {ring_version}: "
           f"{' '.join(ring_order)}; rotation {rotation} deg")
 
-    sets = design.stimulus_sets(ring_order, object_set)
+    sets = design.stimulus_sets(ring_order, feature_mapping)
     practice_set = sets["practice"]
     task_set = sets["task"]
     used_sets = [practice_set, task_set]
@@ -605,14 +637,21 @@ def main():
     first_validation = None           # marker fields of the first validation
     participant = {"age": "", "gender": ""}
     pid = "debug"                     # no demographics: no SONA ID, no key file
+    consented = False                 # set once the consent form is agreed
     try:
         # Inside the try, so Esc here still closes the window and tracker.
         pres.show_pages(SCREEN_TEXT["greeting"])
+        # Consent before anything is recorded: no participant ID, key-file
+        # row or data file exists for someone who does not agree.
+        if SESSION["yesConsent"] and not pres.show_consent():
+            raise ConsentDeclined
+        consented = True
         if SESSION["yesDemographics"]:
             participant = ask_demographics(pres)
             # The SONA ID goes only into the key file, never into the data.
             pid = assign_pid(participant.pop("sonaID"))
         print(f"Participant ID: {pid}")
+        log_condition(pid, feature_mapping, ring_version)
 
         pres.show_pages(SCREEN_TEXT["task"])
 
@@ -642,7 +681,7 @@ def main():
         columns = trialdata.session_columns(
             participant, accuracy,
             screen_rate, tracker_rate, tracked_eyes, used_sets,
-            calibration_attempts, object_set, ring_version, rotation,
+            calibration_attempts, feature_mapping, ring_version, rotation,
             positions)
         # Needed later to judge where gaze was
         columns["nameSelectRadius_px"] = round(pres.name_radius_px, 2)
@@ -670,12 +709,17 @@ def main():
         posttask_q(pres)
         marker.mark("session_end")
         pres.show_debrief()
+    except ConsentDeclined:
+        print("\nThe participant did not agree to participate. Nothing was "
+              "recorded.")
     except EndSession as e:
-        # Data so far are on disk; the participant still gets the debrief.
+        # Data so far are on disk; the participant still gets the debrief
+        # (not if the session ended before consent).
         set_trials_running(False)
         marker.mark("session_ended_early")    # no-op before recording
         print(f"\nENDED EARLY: {e}")
-        pres.show_debrief()
+        if consented:
+            pres.show_debrief()
     finally:
         trialdata.close_file()
         marker.close_session()

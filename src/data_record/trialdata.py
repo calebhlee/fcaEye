@@ -19,7 +19,7 @@ from importlib.metadata import version
 
 import config
 import design
-from config import ATTRIBUTE_SETS
+from config import FEATURE_MAPPINGS
 
 # Settings written to the session file as columns.
 SESSION_SETTINGS = ["DISPLAY", "GEOMETRY", "TIMING", "EULER_TOUR", "PHASES",
@@ -54,7 +54,7 @@ _participant_id = None
 
 def session_columns(participant, accuracy, screen_rate,
                     tracker_rate, tracked_eyes, stim_sets,
-                    calibration_attempts, object_set, ring_version, rotation,
+                    calibration_attempts, feature_mapping, ring_version, rotation,
                     positions):
     """Session-wide values and the config settings.
 
@@ -66,7 +66,7 @@ def session_columns(participant, accuracy, screen_rate,
     """
     columns = dict(participant)
     columns.update({
-        "objectSet": object_set,
+        "featureMapping": feature_mapping,
         "ringVersion": ring_version,
     })
     columns.update({
@@ -89,7 +89,7 @@ def session_columns(participant, accuracy, screen_rate,
         p = "practice_" if is_practice else ""        # column prefix
         if not is_practice:
             columns["attributes"] = design.attributes_text(
-                ATTRIBUTE_SETS[object_set])
+                FEATURE_MAPPINGS[feature_mapping])
         for obj in stim_set.objects:
             columns[f"{p}{obj}Name"] = stim_set.names[obj]
         if not is_practice:

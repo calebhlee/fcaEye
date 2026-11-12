@@ -36,13 +36,11 @@ DEMO_TRIALS = {
 }
 
 # 2. COUNTERBALANCING ======================================================
-# Each participant gets an object set and a ring order, from the number of
-# participants already in the participant key file (design.counterbalance):
-#   objectSet  = n mod 2 + 1   (ATTRIBUTE_SETS: which feature stands for
-#                               which attribute)
-#   ringVersion = n mod 7 + 1  (ringOrders)
-# 2 and 7 share no factor, so every 14 participants get every object set
-# with every ring order once.
+# Each participant gets a feature mapping (FEATURE_MAPPINGS: which feature
+# stands for which attribute) and a ring version (ringOrders). The researcher
+# types both in the terminal at the start of each session
+# (experiment.ask_condition). They are logged with the participant ID in
+# PATHS["conditionLog"] and recorded in the session file.
 COUNTERBALANCE = {
     # Names on the ring, slot 1 to 8 (counter-clockwise). Across the 7 orders
     # every pair of objects sits side by side exactly twice, and every object
@@ -183,6 +181,7 @@ PATHS = {
     "dataDir": PROJECT_DIR / "data",                    # output data files
     "fontDir": PROJECT_DIR / "src" / "fonts",          # page fonts
     "keyFile": PROJECT_DIR.parent / "participant_key" / "participant_key.csv",  # SONA ID -> PID
+    "conditionLog": PROJECT_DIR / "data" / "condition_log.csv",    # PID -> condition
     "debriefLetter": PROJECT_DIR / "src" / "debrief_letter.txt",   # debrief letter txt
     "consentForm": PROJECT_DIR / "src" / "consent_form.txt",       # consent form txt
 
@@ -204,12 +203,12 @@ CONTEXT = {
 }
 
 # Visual feature for each attribute, and what 1 and 0 mean (stimuli.py),
-# per object set (counterbalanced). The context is the same in both sets;
-# only which feature stands for which attribute differs. In set 1 the
-# 3-member categories (m2+m4, m3+m5) are outline+slot and hole+circle; in
-# set 2 they are colour+hole and outline+stripes, which are 2-member pairs
-# in set 1 (and set 1's are 2-member pairs in set 2).
-ATTRIBUTE_SETS = {
+# per feature mapping (counterbalanced). The context is the same in both
+# mappings; only which feature stands for which attribute differs. In mapping
+# 1 the 3-member categories (m2+m4, m3+m5) are outline+slot and hole+circle;
+# in mapping 2 they are colour+hole and outline+stripes, which are 2-member
+# pairs in mapping 1 (and mapping 1's are 2-member pairs in mapping 2).
+FEATURE_MAPPINGS = {
     1: {
         "m0": {"feature": "colour", 1: "orange", 0: "gray"},
         "m1": {"feature": "stripes", 1: "stripes", 0: "none"},
@@ -232,7 +231,7 @@ ATTRIBUTE_SETS = {
 # E.g. 100001.png = orange circle.
 IMAGE_NAME_ORDER = ["colour", "stripes", "outline", "hole", "slot", "circle"]
 
-# Object names (the same in both object sets)
+# Object names (the same in both feature mappings)
 NAMES = {
     "g0": "Guli",
     "g1": "Domu",
@@ -279,17 +278,16 @@ PRACTICE_SIZES = {
 SCREEN_TEXT = {
     # Greeting screen
     "greeting": [
-        ("Welcome",                                                     
+        ("Welcome",
          "Welcome and thank you for taking part in this study.\n\n"
          "In this experiment, you will learn made-up names for visual "
          "shapes. You will choose names by looking at them, and an eye "
-         "tracker will record where you look.",
+         "tracker will record where you look.\n\n"
+         "If you want to stop at any time, press Esc or let the "
+         "researcher know.",
          # third part: small grey note above the footer
          "Use the arrow keys to move through the instructions: "
          "\u2192 for next, \u2190 for back."),
-        ("Welcome",
-         "If you want to stop at any time, press Esc or let the "
-         "researcher know.\n\n"),
     ],
 
     # Demographic questions: (question, hint under the box)
@@ -425,8 +423,8 @@ SCREEN_TEXT = {
     # Last screen, after the debrief letter. Only Esc (the researcher) closes it.
     "callResearcher": [("", "Please call the researcher.")],
 
-    # After the consent form pages: the page with the two buttons
-    # (CONSENT_BUTTONS), clicked with the mouse.
+    # Consent buttons (CONSENT_BUTTONS) go under the last page of the form;
+    # this page is used only if they do not fit there.
     "consent": [("Consent", "Please click one of the options below.")],
 
     # Shown before an abandoned round starts again
@@ -533,12 +531,12 @@ LETTER_STYLE = {
         "columnWidth": 800,
         "imageScale": 0.5,
     },
-    "debrief": {
-        "titleHeight": 34,
-        "headingHeight": 23,
-        "bodyHeight": 19,
-        "captionHeight": 16,
-        "columnWidth": 640,
-        "imageScale": 0.8,
+    "debrief": {                    # same as the consent form
+        "titleHeight": 24,
+        "headingHeight": 18,
+        "bodyHeight": 15,
+        "captionHeight": 13,
+        "columnWidth": 800,
+        "imageScale": 0.5,
     },
 }

@@ -1092,12 +1092,14 @@ class Presentation:
         stim.gap = 0.9 * size           # space after the paragraph
         return stim
 
-    def _letter_pages(self, path, style):
+    def _letter_pages(self, path, style, end_space=0):
         """Lay a letter out in its text column; return a list of stimulus lists.
 
         style: a LETTER_STYLE entry. A paragraph that does not fit starts a
         new page; a heading or a picture moves with the paragraph after it
-        (a picture's caption).
+        (a picture's caption). end_space (px): room kept free under the last
+        paragraph (the consent buttons); the last paragraph moves to a new
+        page if it would not leave that room.
         """
         _, _, top, _ = self._col
         left, right = -style["columnWidth"] / 2, style["columnWidth"] / 2
@@ -1112,6 +1114,8 @@ class Presentation:
             needed = stim.box_h
             if kinds[i] in ("heading", "image") and i + 1 < len(stims):
                 needed += stim.gap + stims[i + 1].box_h
+            if i == len(stims) - 1:
+                needed += end_space
             if y - needed < last_y and pages[-1]:
                 pages.append([])
                 y = first_y
@@ -1124,48 +1128,111 @@ class Presentation:
         return pages
 
     def _letter_page_drawer(self, pages):
-        """draw(page_n) for letter pages (0-based), with footer and page number."""
+        """draw(page_n, show_next=True) for letter pages (0-based), with
+        footer and page number. show_next=False leaves out "Next"/"Continue"
+        (the consent buttons are the way on)."""
         page_number = self._label("", self._footer_y, 16, DIM_TEXT)
 
-        def draw(page_n):
+        def draw(page_n, show_next=True):
             for stim in pages[page_n]:
                 stim.draw()
             self._page_back.draw()
-            last = page_n == len(pages) - 1
-            self._page_next.text = NAV_TEXT["last"] if last else NAV_TEXT["next"]
-            self._page_next.draw()
+            if show_next:
+                last = page_n == len(pages) - 1
+                self._page_next.text = (NAV_TEXT["last"] if last
+                                        else NAV_TEXT["next"])
+                self._page_next.draw()
             page_number.text = f"Page {page_n + 1} of {len(pages)}"
             page_number.draw()
         return draw
 
+    @staticmethod
+    def _letter_bottom(page):
+        """Lowest y (px) of a laid-out letter page."""
+        bottoms = []
+        for stim in page:
+            if isinstance(stim, visual.ImageStim):      # centred
+                bottoms.append(stim.pos[1] - stim.box_h / 2)
+            else:                                       # anchored at the top
+                bottoms.append(stim.pos[1] - stim.box_h)
+        return min(bottoms)
+
     @_on_paper
     def show_consent(self):
-        """Consent form pages (arrows move between them), then the agree /
-        do not agree buttons, clicked with the mouse.
+        """Consent form pages (arrows move between them); the agree / do not
+        agree buttons, clicked with the mouse, sit side by side under the
+        text of the last page (on a page of their own if they do not fit).
 
         Returns True if the participant clicked agree. Esc opens the pause
         screen (Continue or End).
         """
-        pages = self._letter_pages(PATHS["consentForm"], LETTER_STYLE["consent"])
+        style = LETTER_STYLE["consent"]
+        st = PAGE_STYLE
+        labels = [CONSENT_BUTTONS["agree"], CONSENT_BUTTONS["decline"]]
+        # Two smaller buttons side by side under the last page's text. The
+        # layout keeps room for them, so they fit; a page of their own is
+        # only a fallback.
+        box_h, gap, space_above, letter_h = 44, 20, 20, 16
+        pages = self._letter_pages(PATHS["consentForm"], style,
+                                   end_space=space_above + box_h)
         draw = self._letter_page_drawer(pages)
+
+        y = self._letter_bottom(pages[-1]) - space_above - box_h / 2
+        on_last_page = y - box_h / 2 >= self._footer_top + 10
+        if not on_last_page:
+            print("Consent buttons do not fit under the form; "
+                  "showing them on a page of their own.")
+
+        buttons = []
+        width = style["columnWidth"]
+        box_w = (width - gap) / 2
+        for i, label in enumerate(labels):
+            x = -width / 2 + box_w / 2 + i * (box_w + gap)
+            box = visual.Rect(self.win, width=box_w, height=box_h,
+                              pos=(x, y), lineWidth=1.5)
+            text = self._text(st["bodyFont"], letter_h, st["ink"], (x, y),
+                              (box_w - 24, box_h - 8), anchor="center",
+                              text=label, bold=True)
+            buttons.append((box, text))
+
+        mouse = event.Mouse(win=self.win, visible=False)
+        was_visible = self.win.mouseVisible
         page_n = 0
+        chosen = None
         event.clearEvents()
-        while True:
-            draw(page_n)
+        while chosen is None:
+            last = page_n == len(pages) - 1
+            with_buttons = last and on_last_page
+            self.win.mouseVisible = with_buttons
+            draw(page_n, show_next=not with_buttons)
+            if with_buttons:
+                for i, (box, text) in enumerate(buttons):
+                    hover = box.contains(mouse)
+                    box.fillColor = _rgb(st["hover"] if hover else st["paper"])
+                    box.lineColor = _rgb(st["accent"] if hover
+                                         else st["hairline"])
+                    box.draw()
+                    text.draw()
+                    if hover and mouse.getPressed()[0]:
+                        chosen = i
             self.flip()
-            key = event.waitKeys(keyList=["right", "left", "escape"])[0]
-            if key == "escape":
-                pause_menu()
-            elif key == "left":
-                page_n = max(0, page_n - 1)
-            elif page_n == len(pages) - 1:
-                break
-            else:
-                page_n += 1
-        choice = self.choose_button(
-            SCREEN_TEXT["consent"][0],
-            [CONSENT_BUTTONS["agree"], CONSENT_BUTTONS["decline"]])
-        return choice == 0
+
+            for key in event.getKeys(keyList=["right", "left", "escape"]):
+                if key == "escape":
+                    pause_menu()
+                elif key == "left":
+                    page_n = max(0, page_n - 1)
+                elif not last:
+                    page_n += 1
+                elif not on_last_page:          # buttons on their own page
+                    chosen = self.choose_button(SCREEN_TEXT["consent"][0],
+                                                labels)
+                break                           # one key per frame
+        # A button still held must not count as a click on the next screen.
+        while any(mouse.getPressed()):
+            self.flip()
+        self.win.mouseVisible = was_visible
+        return chosen == 0
 
     def _debrief_screen(self):
         """Build the end screens; return (draw(screen_n), n_screens).

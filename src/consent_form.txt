@@ -1,0 +1,84 @@
+# Paragraphs are separated by an empty line. A paragraph starting with
+# "# " is the title, one starting with "## " a section heading, and
+# "![caption](file)" a picture (file in this folder; caption shown below it).
+# Lines starting with "# " before the title are notes and are not shown.
+# The agree / do not agree choice is not part of this file: it is the
+# clickable page after it (config.CONSENT_BUTTONS).
+
+# Information and Consent Form for REG Participants
+Learning How Concepts Are Related: Eye-Tracking Study
+
+Student Investigator: Caleb Lee (h364lee@uwaterloo.ca), School of Psychology, University of Waterloo.
+
+Faculty Supervisor: Dr. Britt Anderson (519-888-4567 x43056), School of Psychology, University of Waterloo.
+
+## Purpose of the Research
+
+You are invited to participate in a research study in the School of Psychology at the University of Waterloo. This project is designed to investigate how people learn the implicit relational structure of concepts. This study is being undertaken as my (Caleb Lee's) Undergraduate Student Research Awards (USRA) project.
+
+## Procedures
+
+There are two phases in this study. In the training phase, you are asked to learn which geometric shape goes with which made-up name, through trial and feedback. Each trial, you are given a shape and choose a made-up name by simply holding your gaze on the target name. This continues until you answer accurately over several rounds. The test phase progresses similarly: you are given a shape and asked to choose the corresponding name by gazing at your selection. This time, you will not be told whether you were correct or not.
+
+In the beginning of the experiment, you will be asked your age and gender. At the end of the session, you will be asked short questions about your experience of the task. Each question is optional. You may decline to answer any questions that you do not wish to answer without penalty or loss of participant credit.
+
+## Eye tracking
+
+We will record your eye movements with an eye tracker. An eye tracker is a camera that detects the duration and location of your eye movements and the size of your pupils. The camera shines invisible infrared light toward your eyes and uses the reflection to detect your pupils and calculates the precise movement of your eyes in response to stimuli. The infrared light is low-power illumination that is within the safety standards. It does not touch you nor is expected to pose a health risk greater than everyday encounter.
+
+![An example of an eye-tracking session](eyeTrackingImage.jpeg)
+
+Before the experiment begins, you will look at a series of dots on the screen. By measuring the eye position looking at known locations, the eye tracker calibrates and adjusts to your unique eyes. Calibration takes less than one minute.
+
+For reliable detection, you will rest your chin on a chin rest with a head strap, to keep your head still. The chin rest is cleaned before each session. You may lift your head from the chin rest during any break, or at any time you feel uncomfortable. In case you move or take a break from the chin rest, calibration will be performed again.
+
+We are also screening participants for trackability for both eyes. That is, both of your eyes' images must be captured by the eye tracker. Before you begin the study, your eyes will be checked for clear detection through a viewing software. No video or images of your face will be stored. You may not be eligible to participate in the study if the camera fails to detect both of your eye images. In this case, you will receive a partial remuneration of 0.5 credit in appreciation of your participation. Your eyes may fail to be detected due to things such as makeup (e.g., heavy mascara, eyeliner, false eyelashes), some eyewear (e.g., smudged lenses, certain glasses frames), or obstructions (e.g., hair falling down, hooded eyelids).
+
+## Potential Risks
+
+The study requires you to focus for roughly the length of the study. The amount of concentration needed is less than everyday tasks performed, thus no negative impacts are expected.
+
+Muscle tiredness on the neck/shoulders, eye strain, minor fatigue and discomfort may occur, due to viewing computer screen in a seated position for a prolonged period of time. You may take a break at the end of each training round or at any point of the experiment upon request. Gaze calibration will be performed again upon return. This risk is no more than what you would generally encounter in everyday life.
+
+No risk to your physical or psychological health is anticipated as a result of participating in this study.
+
+## Study Length
+
+This study is expected to take 90 minutes.
+
+## Remuneration
+
+Participants will receive 1.5 SONA participation credits for full participation.
+Credit is pro-rated by how long participants take part:
+
+- 0-29 minutes: 0.5 credit
+- 30-59 minutes: 1.0 credit
+- 60-90 minutes: 1.5 credits
+
+Participants will receive at least 0.5 credit. This applies even if they decline to consent, or if their eyes cannot be tracked.
+
+## Anonymity/Confidentiality
+
+Data in this study will be used for research purposes only. Your SONA ID number will identify you to award a credit for your participation. Your identity will not appear in any report, publication, or presentation resulting from the study. Your identity will be confidential.
+
+Information and data collected will be strictly confidential and will be maintained for a minimum of 7 years on secure University of Waterloo servers or as needed, on encrypted external drives. Your electronic data will be kept on a password-protected computer, to which only authorized researchers associated with this study have access.
+
+De-identified data related to your participation may be submitted to an open access repository (platform to be determined) or journal (i.e., the data may be publicly available). These data will be completely deidentified/anonymized prior to submission by removing all personally identifying information (names, email addresses, and certain identifying demographic information) before submission and will be presented in aggregate form in publications. This process is integral to the research process as it allows other researchers to verify results and avoid duplicating research. Other individuals may access these data by accessing the open access repository. Although the dataset without identifiers may be shared publicly, your identity will always remain confidential.
+
+## Right to withdraw (Voluntary participation)
+
+Your participation is entirely voluntary. During this study, you can withdraw at any time without penalty or loss of participation credit. If you withdraw, you may also ask for your data to be removed. However, since data collected will be de-identified, please note that researchers will have no way of knowing which data belongs to which participant. Your data will be stored under a randomly generated participant ID, not your SONA ID. A separate form linking your SONA ID to this participant ID is kept apart from the research data, accessible only to the researchers, and is never shared or published with the data. This link will be permanently destroyed upon the completion of data collection.
+
+## Ethics and Follow up
+
+To obtain results from the study or if you have any questions or concerns, please contact the researchers stated above.
+
+This study has been reviewed by and received ethics clearance through a University of Waterloo Research Ethics Board (REB 48927). If you have questions for the Board, contact the Office of Research Ethics, toll-free at 1-833-643-2379 (Canada and USA), 1-519-888-4440, or reb@uwaterloo.ca. For all other questions, after receiving this letter, or if you would like additional information to assist you in reaching a decision about participation, please feel free to ask the student investigator, Caleb Lee (h364lee@uwaterloo.ca), or a faculty supervisor, Britt Anderson (britt@uwaterloo.ca).
+
+## Consent Form
+
+I agree to participate in this study described above being conducted by Caleb Lee, and Dr. Britt Anderson of the University of Waterloo School of Psychology. I have made this decision based on the information I read in the Information Letter. I am aware that I can withdraw from the study at any time without penalty or loss of participation credit. By agreeing to participate in the study, you are not waiving your legal rights or releasing the investigator(s) or involved institution(s) from their legal and professional responsibilities.
+
+I also understand that this study has been reviewed by and received ethics clearance through a University of Waterloo Research Ethics Board (REB 48927) and that I may contact the Office of Research Ethics, toll-free at 1-833-643-2379 (Canada and USA), 1-519-888-4440, or reb@uwaterloo.ca.
+
+For all other questions contact Caleb Lee at h364lee@uwaterloo.ca
